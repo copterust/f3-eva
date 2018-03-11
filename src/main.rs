@@ -1,39 +1,70 @@
 #![no_std]
 
-extern crate stm32f103xx;
 extern crate cortex_m;
 
-use stm32f103xx::GPIOC;
+extern crate stm32f103xx_hal as hal;
+
+use hal::prelude::*;
+use hal::stm32f103xx;
 use cortex_m::asm;
 
-fn main()  {
-    let per = stm32f103xx::Peripherals::take().unwrap();
 
-    // Enable port c in the register clock controll
-    per.RCC.apb2enr.write(|w| w.iopcen().enabled());
+fn main() {
+    let p = stm32f103xx::Peripherals::take().unwrap();
 
-    let gpioc = per.GPIOC;
+    let mut flash = p.FLASH.constrain();
+    let mut rcc = p.RCC.constrain();
 
-    // Change PIN13 mode to output
-    gpioc.crh.write(|w| w.mode13().output());
-    
+    let clocks = rcc.cfgr.freeze(&mut flash.acr);
+
+    let mut afio = p.AFIO.constrain(&mut rcc.apb2);
+
+    // let mut gpioa = p.GPIOA.split(&mut rcc.apb2);
+    let mut gpiob = p.GPIOB.split(&mut rcc.apb2);
+
+    // TIM2
+    // let c1 = gpioa.pa0.into_alternate_push_pull(&mut gpioa.crl);
+    // let c2 = gpioa.pa1.into_alternate_push_pull(&mut gpioa.crl);
+    // let c3 = gpioa.pa2.into_alternate_push_pull(&mut gpioa.crl);
+    // let c4 = gpioa.pa3.into_alternate_push_pull(&mut gpioa.crl);
+
+    // TIM3
+    // let c1 = gpioa.pa6.into_alternate_push_pull(&mut gpioa.crl);
+    // let c2 = gpioa.pa7.into_alternate_push_pull(&mut gpioa.crl);
+    // let c3 = gpiob.pb0.into_alternate_push_pull(&mut gpiob.crl);
+    // let c4 = gpiob.pb1.into_alternate_push_pull(&mut gpiob.crl);
+
+    // TIM4
+    let c1 = gpiob.pb6.into_alternate_push_pull(&mut gpiob.crl);
+    let c2 = gpiob.pb7.into_alternate_push_pull(&mut gpiob.crl);
+    let c3 = gpiob.pb8.into_alternate_push_pull(&mut gpiob.crh);
+    let c4 = gpiob.pb9.into_alternate_push_pull(&mut gpiob.crh);
+
+    let mut pwm = p.TIM4
+        .pwm(
+            (c1, c2, c3, c4),
+            &mut afio.mapr,
+            1.khz(),
+            clocks,
+            &mut rcc.apb1,
+        )
+        .3;
+
+    let max = pwm.get_max_duty();
+
+    pwm.enable();
+
     loop {
-        // Blink 10 times quickly (250ms on 250ms off)
-        for _ in 0..10 {
-            blink(&gpioc);
-        }
-        delay_ms(1000);
+        pwm.set_duty(max);
+        delay_ms(2000);
+        pwm.set_duty(max / 4);
+        delay_ms(2000);
+        pwm.set_duty(0);
+        delay_ms(2000);
+
+        delay_ms(3000);
     }
 
-}
-
-fn blink(gpioc: &GPIOC) {
-    // Turn led on
-    gpioc.bsrr.write(|w| w.br13().set_bit());
-    delay_ms(250);
-    // Turn led off
-    gpioc.bsrr.write(|w| w.bs13().set());
-    delay_ms(250);
 }
 
 fn delay_ms(ms: usize) {
