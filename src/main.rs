@@ -6,7 +6,6 @@ extern crate embedded_hal as ehal;
 extern crate stm32f103xx_hal as hal;
 
 use hal::prelude::*;
-use ehal::digital::OutputPin;
 use hal::stm32f103xx;
 use cortex_m::asm;
 
@@ -49,13 +48,9 @@ fn main() {
             clocks,
             &mut rcc.apb1,
         );
-    // let ar:&ehal::PwmPin<Duty=u16> = &a;
-    // let br:&ehal::PwmPin<Duty=u16> = &b;
-    // let cr:&ehal::PwmPin<Duty=u16> = &c;
-    // let dr:&ehal::PwmPin<Duty=u16> = &d;
 
     loop {
-        for i in 0..3 {
+        for i in 0..4 {
             match i {
                 0 => {control(&mut pwms.0);}
                 1 => {control(&mut pwms.1);}
@@ -64,7 +59,7 @@ fn main() {
                 _ => {}
             };
 
-            delay_ms(3000);
+            delay_ms(1000);
         }
     }
 
@@ -75,12 +70,15 @@ fn main() {
 fn control<'a, P:ehal::PwmPin<Duty=u16>>(pwm: &'a mut P)  {
     let max = pwm.get_max_duty();
     pwm.enable();
-    pwm.set_duty(max);
-    delay_ms(2000);
-    pwm.set_duty(max / 4);
-    delay_ms(2000);
-    pwm.set_duty(0);
-    delay_ms(2000);
+    for i in 1..max {
+        pwm.set_duty(i);
+        delay_ms(5);
+    }
+    for i in max..0 {
+        pwm.set_duty(i);
+        delay_ms(5);
+    }
+    pwm.disable()
 }
 
 fn delay_ms(ms: usize) {
