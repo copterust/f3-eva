@@ -9,7 +9,6 @@ use hal::prelude::*;
 use hal::stm32f103xx;
 use cortex_m::asm;
 
-
 fn main() {
     let p = stm32f103xx::Peripherals::take().unwrap();
 
@@ -41,7 +40,7 @@ fn main() {
     // let c3 = gpiob.pb8.into_alternate_push_pull(&mut gpiob.crh);
     // let c4 = gpiob.pb9.into_alternate_push_pull(&mut gpiob.crh);
 
-    let mut pwms = p.TIM2
+    let (mut p1, mut p2, mut p3, mut p4) = p.TIM2
         .pwm((c1, c2, c3, c4),
             &mut afio.mapr,
             1.khz(),
@@ -51,23 +50,26 @@ fn main() {
 
     loop {
         for i in 0..4 {
-            match i {
-                0 => {control(&mut pwms.0);}
-                1 => {control(&mut pwms.1);}
-                2 => {control(&mut pwms.2);}
-                3 => {control(&mut pwms.3);}
-                _ => {}
-            };
-
+            control(choose4(&mut p1, &mut p2, &mut p3, &mut p4, i));
             delay_ms(1000);
         }
     }
-
-
-
 }
 
-fn control<'a, P:ehal::PwmPin<Duty=u16>>(pwm: &'a mut P)  {
+fn choose4<'a>(t1:&'a mut ehal::PwmPin<Duty=u16>,
+               t2:&'a mut ehal::PwmPin<Duty=u16>,
+               t3:&'a mut ehal::PwmPin<Duty=u16>,
+               t4:&'a mut ehal::PwmPin<Duty=u16>, i:u8)
+               -> &'a mut ehal::PwmPin<Duty=u16> {
+    match i {
+        0 => {t1}
+        1 => {t2}
+        2 => {t3}
+        _ => {t4}
+    }
+}
+
+fn control(pwm: &mut ehal::PwmPin<Duty=u16>) {
     let max = pwm.get_max_duty();
     pwm.enable();
     for i in 1..max {
