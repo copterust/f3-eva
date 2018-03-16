@@ -3,14 +3,14 @@
 extern crate cortex_m;
 
 extern crate embedded_hal as ehal;
-extern crate stm32f103xx_hal as hal;
+extern crate stm32f30x_hal as hal;
 
 use hal::prelude::*;
-use hal::stm32f103xx;
+use hal::stm32f30x;
 use cortex_m::asm;
 
 fn main() {
-    let p = stm32f103xx::Peripherals::take().unwrap();
+    let p = stm32f30x::Peripherals::take().unwrap();
 
     let mut flash = p.FLASH.constrain();
     let mut rcc = p.RCC.constrain();
