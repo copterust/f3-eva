@@ -2,10 +2,11 @@
 
 use hal::prelude::*;
 
+use hal::gpio::gpioc;
 use hal::gpio::gpioc::{PC15};
 use hal::gpio::{Output, PushPull};
 
-pub type BEEPER = PC15<Output<PushPull>>;
+// pub type BEEPER = PC15<Output<PushPull>>;
 
 pub struct Beeper {
     pin: PC15<Output<PushPull>>,
