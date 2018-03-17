@@ -7,3 +7,4 @@ Eachine TURBINE QX 70 Pinout
 | MOTOR2 | FWD RIGHT  | A01 |
 | MOTOR3 | BACK LEFT  | A02 |
 | MOTOR4 | FWD LEFT   | A03 |
+| BEEPER |            | C15 |
