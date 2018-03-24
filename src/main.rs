@@ -15,7 +15,6 @@ use hal::stm32f30x;
 use hal::delay::Delay;
 use mpu9250::Mpu9250;
 use hal::spi::Spi;
-use hal::serial::*;
 
 fn main() {
     let dp = stm32f30x::Peripherals::take().unwrap();
@@ -29,21 +28,17 @@ fn main() {
     let cp = cortex_m::Peripherals::take().unwrap();
     let mut delay = Delay::new(cp.SYST, clocks);
 
-    let txpin = gpioa
-            .pa9
-        .into_af7(&mut gpioa.moder, &mut gpioa.afrh);
-    let rxpin = gpioa
-            .pa10
-            .into_af7(&mut gpioa.moder, &mut gpioa.afrh);
+    let txpin = gpioa.pa9.into_af7(&mut gpioa.moder, &mut gpioa.afrh);
+    let rxpin = gpioa.pa10.into_af7(&mut gpioa.moder, &mut gpioa.afrh);
 
-    let mut uart = hal::serial::Serial::usart1(
+    let uart = hal::serial::Serial::usart1(
         dp.USART1,
         (txpin, rxpin),
         hal::time::Bps(9600), clocks, &mut rcc.apb2);
-    let (mut tx, mut rx) = uart.split();
+    let (mut tx, _rx) = uart.split();
 
     // SPI1
-    let sck = gpioa.pa5.into_af5(&mut gpioa.moder, &mut gpioa.afrl) ;//.into_push_pull_output(&mut gpioa.moder, &mut gpioa.otyper);
+    let sck = gpioa.pa5.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
     let miso = gpioa.pa6.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
     let mosi = gpioa.pa7.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
 
@@ -60,8 +55,8 @@ fn main() {
 
     let mut mpu9250 = Mpu9250::marg(spi, nss, &mut delay).unwrap();
 
-    assert_eq!(mpu9250.who_am_i().unwrap(), 0x71);
-    assert_eq!(mpu9250.ak8963_who_am_i().unwrap(), 0x48);
+    // assert_eq!(mpu9250.who_am_i().unwrap(), 0x71);
+    // assert_eq!(mpu9250.ak8963_who_am_i().unwrap(), 0x48);
 
     let mut _beep = beeper::Beeper::new(gpioc);
     loop {
