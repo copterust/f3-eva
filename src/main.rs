@@ -24,6 +24,16 @@ fn main() {
     let mut delay = Delay::new(cp.SYST, clocks);
 
     let mut beep = beeper::Beeper::new(gpioc);
+
+    let mut gpioa = dp.GPIOA.split(&mut rcc.ahb);
+    let tx = gpioa
+            .pa9
+            .into_af7(&mut gpioa.moder, &mut gpioa.afrh);
+    let rx = gpioa
+            .pa10
+            .into_af7(&mut gpioa.moder, &mut gpioa.afrh);
+
+    let _uart = hal::serial::Serial::usart1(dp.USART1, (tx, rx), hal::time::Bps(9600), clocks, &mut rcc.apb2);
     loop {
         delay.delay_ms(1_000_u16);
         beep.on();
