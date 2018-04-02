@@ -26,6 +26,8 @@ fn init_system() {
     dp.RCC.apb2enr.modify(|_, w| w.syscfgen().enabled());
     dp.RCC.ahbenr.modify(|_, w| w.iopeen().enabled());
     dp.RCC.ahbenr.modify(|_, w| w.iopaen().enabled());
+    // USB prescaler 1:5
+    dp.RCC.cfgr.modify(|_, w| w.usbpres().clear_bit());
 
     // USB is on PA 11/12 USB_DM/DP
     // in push-pull mode
@@ -45,6 +47,9 @@ fn init_system() {
 
     let mut cp = cortex_m::Peripherals::take().unwrap();
     cp.NVIC.clear_pending(Interrupt::USB_WKUP_EXTI);
+    // TODO enable line18
+    dp.RCC.cfgr.modify(|_, w| w.usbpres().clear_bit());
+    dp.RCC.apb1enr.modify(|_, w| w.usben().enabled());
 }
 
 fn init_systick() {
