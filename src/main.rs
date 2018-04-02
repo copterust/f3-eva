@@ -14,6 +14,7 @@ use hal::prelude::*;
 use hal::stm32f30x;
 use cortex_m::peripheral::syst::SystClkSource;
 use stm32f30x::NVIC_PRIO_BITS;
+use stm32f30x::Interrupt;
 //use hal::delay::Delay;
 //use mpu9250::Mpu9250;
 //use hal::spi::Spi;
@@ -37,6 +38,13 @@ fn init_system() {
         .into_push_pull_output(&mut gpioa.moder, &mut gpioa.otyper)
         .into_af14(&mut gpioa.moder, &mut gpioa.afrh)
         .into_highspeed(&mut gpioa.ospeedr);
+    let _dp = gpioa.pa12
+        .into_push_pull_output(&mut gpioa.moder, &mut gpioa.otyper)
+        .into_af14(&mut gpioa.moder, &mut gpioa.afrh)
+        .into_highspeed(&mut gpioa.ospeedr);
+
+    let mut cp = cortex_m::Peripherals::take().unwrap();
+    cp.NVIC.clear_pending(Interrupt::USB_WKUP_EXTI);
 }
 
 fn init_systick() {
