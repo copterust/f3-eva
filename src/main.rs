@@ -1,4 +1,4 @@
-#![deny(unsafe_code)]
+//#![deny(unsafe_code)]
 // #![deny(warnings)]
 #![no_std]
 
