@@ -24,7 +24,21 @@ fn init_system() {
     dp.RCC.apb1enr.modify(|_, w| w.pwren().enabled());
     dp.RCC.apb2enr.modify(|_, w| w.syscfgen().enabled());
     dp.RCC.ahbenr.modify(|_, w| w.iopeen().enabled());
-    
+    dp.RCC.ahbenr.modify(|_, w| w.iopaen().enabled());
+
+    // USB is on PA 11/12 USB_DM/DP
+    // in push-pull mode
+    // in AF
+    // without pull-up resistor
+    // running at 50 MHz
+    let mut rcc = dp.RCC.constrain();
+    let mut gpioa = dp.GPIOA.split(&mut rcc.ahb);
+    let _dm = gpioa.pa11
+        .into_push_pull_output(&mut gpioa.moder, &mut gpioa.otyper)
+        .into_af14(&mut gpioa.moder, &mut gpioa.afrh)
+        .internal_pull_up(&mut gpioa.pupdr, false);
+        //.set_speed_50Mhz;
+        
 }
 
 fn init_systick() {
