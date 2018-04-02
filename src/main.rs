@@ -19,6 +19,14 @@ use stm32f30x::NVIC_PRIO_BITS;
 //use hal::spi::Spi;
 //use hal::serial::*;
 
+fn init_system() {
+    let dp = stm32f30x::Peripherals::take().unwrap();
+    dp.RCC.apb1enr.modify(|_, w| w.pwren().enabled());
+    dp.RCC.apb2enr.modify(|_, w| w.syscfgen().enabled());
+    dp.RCC.ahbenr.modify(|_, w| w.iopeen().enabled());
+    
+}
+
 fn init_systick() {
     let dp = stm32f30x::Peripherals::take().unwrap();
     let rcc = dp.RCC.constrain();
@@ -39,6 +47,7 @@ fn init_systick() {
         // SysTick IRQ
         scb.shpr[11].write((priority << (8 - NVIC_PRIO_BITS)) & 0xff);
     };
+
     sys_tick.clear_current();
     sys_tick.set_clock_source(SystClkSource::Core);
     sys_tick.enable_interrupt();
@@ -47,6 +56,7 @@ fn init_systick() {
 
 fn main() {
     init_systick();
+    init_system();
     /*
     let dp = stm32f30x::Peripherals::take().unwrap();
     // USB stuff
