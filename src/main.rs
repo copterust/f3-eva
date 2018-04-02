@@ -35,9 +35,8 @@ fn init_system() {
     let mut gpioa = dp.GPIOA.split(&mut rcc.ahb);
     let _dm = gpioa.pa11
         .into_push_pull_output(&mut gpioa.moder, &mut gpioa.otyper)
-        .into_af14(&mut gpioa.moder, &mut gpioa.afrh);
-        //.set_speed_50Mhz;
-        
+        .into_af14(&mut gpioa.moder, &mut gpioa.afrh)
+        .into_highspeed(&mut gpioa.ospeedr);
 }
 
 fn init_systick() {
