@@ -26,9 +26,6 @@ fn init_system() {
     dp.RCC.apb2enr.modify(|_, w| w.syscfgen().enabled());
     dp.RCC.ahbenr.modify(|_, w| w.iopeen().enabled());
     dp.RCC.ahbenr.modify(|_, w| w.iopaen().enabled());
-    // USB prescaler 1:5
-    dp.RCC.cfgr.modify(|_, w| w.usbpres().clear_bit());
-
     // USB is on PA 11/12 USB_DM/DP
     // in push-pull mode
     // in AF
@@ -48,6 +45,11 @@ fn init_system() {
     let mut cp = cortex_m::Peripherals::take().unwrap();
     cp.NVIC.clear_pending(Interrupt::USB_WKUP_EXTI);
     // TODO enable line18
+}
+
+fn init_usb_clock() {
+    let dp = stm32f30x::Peripherals::take().unwrap();
+    // USB prescaler 1:5
     dp.RCC.cfgr.modify(|_, w| w.usbpres().clear_bit());
     dp.RCC.apb1enr.modify(|_, w| w.usben().enabled());
 }
@@ -77,11 +79,23 @@ fn init_systick() {
     sys_tick.set_clock_source(SystClkSource::Core);
     sys_tick.enable_interrupt();
     sys_tick.enable_counter();
+} 
+
+fn setup_usb_interrupts() {
+    let mut scb = unsafe { cortex_m::peripheral::SCB::ptr() };
+    (*scb).aircr.write(0x05FA0000 | 0x500);
+}
+
+fn init_usb() {
+
 }
 
 fn main() {
     init_systick();
     init_system();
+    init_usb_clock();
+    setup_usb_interrupts();
+    init_usb();
     /*
     let dp = stm32f30x::Peripherals::take().unwrap();
     // USB stuff
