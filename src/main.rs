@@ -29,9 +29,16 @@ fn init_systick() {
     let mut sys_tick = cp.SYST;
     // configure systick
     // TODO if tick > mask...
-    sys_tick.set_reload((freq / 100) - 1);
+    match freq {
+        hal::time::Hertz(i) => sys_tick.set_reload((i / 100) - 1)
+    }
+
     let mut scb = cp.SCB;
-    unsafe { scb.shpr[11].write((1 << NVIC_PRIO_BITS) - 1) };
+    let priority = (1 << NVIC_PRIO_BITS) - 1;
+    unsafe {
+        // SysTick IRQ
+        scb.shpr[11].write((priority << (8 - NVIC_PRIO_BITS)) & 0xff);
+    };
     sys_tick.clear_current();
     sys_tick.set_clock_source(SystClkSource::Core);
     sys_tick.enable_interrupt();
