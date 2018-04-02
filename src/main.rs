@@ -12,12 +12,39 @@ mod beeper;
 
 use hal::prelude::*;
 use hal::stm32f30x;
-use hal::delay::Delay;
-use mpu9250::Mpu9250;
-use hal::spi::Spi;
+use cortex_m::peripheral::syst::SystClkSource;
+use stm32f30x::NVIC_PRIO_BITS;
+//use hal::delay::Delay;
+//use mpu9250::Mpu9250;
+//use hal::spi::Spi;
+//use hal::serial::*;
+
+fn init_systick() {
+    let dp = stm32f30x::Peripherals::take().unwrap();
+    let rcc = dp.RCC.constrain();
+    let mut flash = dp.FLASH.constrain();
+    let clocks = rcc.cfgr.freeze(&mut flash.acr);
+    let freq = clocks.hclk();
+    let cp = cortex_m::Peripherals::take().unwrap();
+    let mut sys_tick = cp.SYST;
+    // configure systick
+    // TODO if tick > mask...
+    sys_tick.set_reload((freq / 100) - 1);
+    let mut scb = cp.SCB;
+    unsafe { scb.shpr[11].write((1 << NVIC_PRIO_BITS) - 1) };
+    sys_tick.clear_current();
+    sys_tick.set_clock_source(SystClkSource::Core);
+    sys_tick.enable_interrupt();
+    sys_tick.enable_counter();
+}
 
 fn main() {
+    init_systick();
+    /*
     let dp = stm32f30x::Peripherals::take().unwrap();
+    // USB stuff
+    let rss = dp.RSS.constrain();
+
     let mut rcc = dp.RCC.constrain();
     // GPs
     let mut gpioa = dp.GPIOA.split(&mut rcc.ahb);
@@ -64,4 +91,5 @@ fn main() {
         delay.delay_ms(1_000_u16);
         let _res2 = tx.flush();
     }
+    */
 }
