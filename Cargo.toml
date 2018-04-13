@@ -23,12 +23,14 @@ git = "https://github.com/copterust/stm32f30x-hal.git"
 version = "0.6.0"
 features = ["rt"]
 
+[dependencies.panic-abort]
+version = "0.1.1"
+
 [dependencies.cortex-m]
 version = "0.4.3"
 
 [dependencies.cortex-m-rt]
-version = "0.3.13"
-features = ["abort-on-panic"]
+version = "0.4.0"
 
 [dependencies.mpu9250]
 version = "0.1.0"

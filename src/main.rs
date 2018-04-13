@@ -3,6 +3,7 @@
 #![no_std]
 
 extern crate cortex_m;
+extern crate panic_abort;
 
 extern crate embedded_hal as ehal;
 extern crate stm32f30x_hal as hal;
