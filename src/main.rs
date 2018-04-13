@@ -67,11 +67,14 @@ fn main() {
     let rb = &mut beep;
     let rd = &mut delay;
     loop {
+        rb.off();
         match rx.read() {
             Ok(b) => {
+                rb.on();
                 wrt(&mut tx, b, rb, rd, 2000);
             }
             Err(nb::Error::Other(e)) => {
+                rb.on();
                 match e {
                     serial::Error::Framing => {
                         wrtc(&mut tx, 'f', rb, rd, 2000);
