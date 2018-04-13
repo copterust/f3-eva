@@ -2,6 +2,7 @@
 // #![deny(warnings)]
 #![no_std]
 
+extern crate nb;
 extern crate cortex_m;
 extern crate panic_abort;
 
@@ -13,12 +14,9 @@ mod beeper;
 
 use hal::prelude::*;
 use hal::stm32f30x;
-use cortex_m::peripheral::syst::SystClkSource;
-use stm32f30x::*;
 use hal::delay::Delay;
-use mpu9250::Mpu9250;
-use hal::spi::Spi;
-use hal::serial::*;
+// use mpu9250::Mpu9250;
+use hal::serial;
 
 
 fn main() {
@@ -41,34 +39,80 @@ fn main() {
         dp.USART1,
         (txpin, rxpin),
         hal::time::Bps(9600), clocks, &mut rcc.apb2);
-    let (mut tx, _rx) = uart.split();
+    let (mut tx, mut rx) = uart.split();
 
     // SPI1
-    let sck = gpioa.pa5.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
-    let miso = gpioa.pa6.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
-    let mosi = gpioa.pa7.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
+    // let sck = gpioa.pa5.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
+    // let miso = gpioa.pa6.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
+    // let mosi = gpioa.pa7.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
 
-    let nss = gpioa.pa4.into_push_pull_output(&mut gpioa.moder, &mut gpioa.otyper);
+    // let nss = gpioa.pa4.into_push_pull_output(&mut gpioa.moder, &mut gpioa.otyper);
 
-    let spi = Spi::spi1(
-        dp.SPI1,
-        (sck, miso, mosi),
-        mpu9250::MODE,
-        1.mhz(),
-        clocks,
-        &mut rcc.apb2,
-    );
+    // let spi = Spi::spi1(
+    //     dp.SPI1,
+    //     (sck, miso, mosi),
+    //     mpu9250::MODE,
+    //     1.mhz(),
+    //     clocks,
+    //     &mut rcc.apb2,
+    // );
 
-    let mut mpu9250 = Mpu9250::marg(spi, nss, &mut delay).unwrap();
+    // let mut mpu9250 = Mpu9250::marg(spi, nss, &mut delay).unwrap();
 
     // assert_eq!(mpu9250.who_am_i().unwrap(), 0x71);
     // assert_eq!(mpu9250.ak8963_who_am_i().unwrap(), 0x48);
 
-    // let mut _beep = beeper::Beeper::new(gpioc);
+    let mut beep = beeper::Beeper::new(gpioc);
+    let rb = &mut beep;
+    let rd = &mut delay;
     loop {
-        let _res1  = tx.write(55);
-        delay.delay_ms(1_000_u16);
-        let _res2 = tx.flush();
-    }
+        match rx.read() {
+            Ok(b) => {
+                wrt(&mut tx, b, rb, rd, 2000);
+            }
+            Err(nb::Error::Other(e)) => {
+                match e {
+                    serial::Error::Framing => {
+                        wrt(&mut tx, 49, rb, rd, 2000);
+                    }
+                    serial::Error::Overrun => {
+                        wrt(&mut tx, 50, rb, rd, 2000);
 
+                    }
+                    serial::Error::Parity => {
+                        wrt(&mut tx, 51, rb, rd, 2000);
+
+                    }
+                    serial::Error::Noise => {
+                        wrt(&mut tx, 52, rb, rd, 2000);
+
+                    }
+                    _ => {
+                        wrt(&mut tx, 53, rb, rd, 2000);
+
+                    }
+                }
+            }
+            Err(nb::Error::WouldBlock) => {
+                wrt(&mut tx, 54, rb, rd, 2000);
+            }
+        };
+        rd.delay_ms(1_000_u16);
+    }
+}
+
+fn wrt(tx: &mut hal::serial::Tx<hal::stm32f30x::USART1>,
+       data: u8,
+       b: &mut beeper::Beeper, d: &mut Delay,
+       t: u16) {
+    match tx.write(data) {
+        Ok(_) => {}
+        Err(_) => { err(b, d, t); }
+    }
+}
+
+fn err(b: &mut beeper::Beeper, d: &mut Delay, t: u16) {
+    b.on();
+    d.delay_ms(t);
+    b.off();
 }

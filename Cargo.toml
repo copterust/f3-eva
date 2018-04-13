@@ -26,6 +26,9 @@ features = ["rt"]
 [dependencies.panic-abort]
 version = "0.1.1"
 
+[dependencies.nb]
+version = "0.1.0"
+
 [dependencies.cortex-m]
 version = "0.4.3"
 
