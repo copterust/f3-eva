@@ -35,11 +35,12 @@ fn main() {
     let txpin = gpioa.pa9.into_af7(&mut gpioa.moder, &mut gpioa.afrh);
     let rxpin = gpioa.pa10.into_af7(&mut gpioa.moder, &mut gpioa.afrh);
 
-    let uart = hal::serial::Serial::usart1(
+    let mut serial = hal::serial::Serial::usart1(
         dp.USART1,
         (txpin, rxpin),
         hal::time::Bps(9600), clocks, &mut rcc.apb2);
-    let (mut tx, mut rx) = uart.split();
+    serial.listen(serial::Event::Rxne);
+    let (mut tx, mut rx) = serial.split();
 
     // SPI1
     // let sck = gpioa.pa5.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
@@ -73,31 +74,29 @@ fn main() {
             Err(nb::Error::Other(e)) => {
                 match e {
                     serial::Error::Framing => {
-                        wrt(&mut tx, 49, rb, rd, 2000);
+                        wrtc(&mut tx, 'f', rb, rd, 2000);
+                        err(rb, rd, 2000);
                     }
                     serial::Error::Overrun => {
-                        wrt(&mut tx, 50, rb, rd, 2000);
-
+                        rx.clear_overrun_error();
                     }
                     serial::Error::Parity => {
-                        wrt(&mut tx, 51, rb, rd, 2000);
-
+                        wrtc(&mut tx, 'p', rb, rd, 2000);
+                        err(rb, rd, 2000);
                     }
                     serial::Error::Noise => {
-                        wrt(&mut tx, 52, rb, rd, 2000);
-
+                        wrtc(&mut tx, 'n', rb, rd, 2000);
+                        err(rb, rd, 2000);
                     }
                     _ => {
-                        wrt(&mut tx, 53, rb, rd, 2000);
-
+                        wrtc(&mut tx, 'u', rb, rd, 2000);
+                        err(rb, rd, 2000);
                     }
                 }
             }
             Err(nb::Error::WouldBlock) => {
-                wrt(&mut tx, 54, rb, rd, 2000);
             }
         };
-        rd.delay_ms(1_000_u16);
     }
 }
 
@@ -110,6 +109,14 @@ fn wrt(tx: &mut hal::serial::Tx<hal::stm32f30x::USART1>,
         Err(_) => { err(b, d, t); }
     }
 }
+
+fn wrtc(tx: &mut hal::serial::Tx<hal::stm32f30x::USART1>,
+        data: char,
+        b: &mut beeper::Beeper, d: &mut Delay,
+        t: u16) {
+    wrt(tx, data as u8, b, d, t);
+}
+
 
 fn err(b: &mut beeper::Beeper, d: &mut Delay, t: u16) {
     b.on();
