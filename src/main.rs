@@ -1,14 +1,16 @@
 //#![deny(unsafe_code)]
-// #![deny(warnings)]
+#![deny(warnings)]
 #![no_std]
+#![feature(proc_macro)]
 
-extern crate nb;
 extern crate cortex_m;
+extern crate cortex_m_rtfm as rtfm;
+extern crate nb;
 extern crate panic_abort;
-
 extern crate embedded_hal as ehal;
 extern crate stm32f30x_hal as hal;
-extern crate mpu9250;
+
+// extern crate mpu9250;
 
 mod beeper;
 
@@ -17,90 +19,96 @@ use hal::stm32f30x;
 use hal::delay::Delay;
 // use mpu9250::Mpu9250;
 use hal::serial;
+use rtfm::{app, Threshold};
 
+const BAUD_RATE: hal::time::Bps = hal::time::Bps(9600);
 
-fn main() {
-    let dp = stm32f30x::Peripherals::take().unwrap();
+app!{
+    device: stm32f30x,
 
-    let mut rcc = dp.RCC.constrain();
-    // GPs
-    let mut gpioa = dp.GPIOA.split(&mut rcc.ahb);
-    let gpioc = dp.GPIOC.split(&mut rcc.ahb);
+    resources: {
+        static TX: hal::serial::Tx<hal::stm32f30x::USART1>;
+        static RX: hal::serial::Rx<hal::stm32f30x::USART1>;
+        static BEEPER: beeper::Beeper;
+        static DELAY: hal::delay::Delay;
+    },
 
-    let mut flash = dp.FLASH.constrain();
+    tasks: {
+        USART1_EXTI25: {
+            path: echo,
+            resources: [TX, RX, BEEPER, DELAY],
+        },
+    }
+}
+
+fn init(p: init::Peripherals) -> init::LateResources {
+    let mut rcc = p.device.RCC.constrain();
+    let mut gpioa = p.device.GPIOA.split(&mut rcc.ahb);
+    let gpioc = p.device.GPIOC.split(&mut rcc.ahb);
+
+    let mut flash = p.device.FLASH.constrain();
     let clocks = rcc.cfgr.freeze(&mut flash.acr);
-    let cp = cortex_m::Peripherals::take().unwrap();
-    let mut delay = Delay::new(cp.SYST, clocks);
-
+    let delay = Delay::new(p.core.SYST, clocks);
     let txpin = gpioa.pa9.into_af7(&mut gpioa.moder, &mut gpioa.afrh);
     let rxpin = gpioa.pa10.into_af7(&mut gpioa.moder, &mut gpioa.afrh);
-
     let mut serial = hal::serial::Serial::usart1(
-        dp.USART1,
+        p.device.USART1,
         (txpin, rxpin),
-        hal::time::Bps(9600), clocks, &mut rcc.apb2);
+        BAUD_RATE, clocks, &mut rcc.apb2);
     serial.listen(serial::Event::Rxne);
-    let (mut tx, mut rx) = serial.split();
+    let (tx, rx) = serial.split();
+    let beep = beeper::Beeper::new(gpioc);
+    init::LateResources { TX: tx, RX: rx, BEEPER: beep, DELAY: delay }
+}
 
-    // SPI1
-    // let sck = gpioa.pa5.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
-    // let miso = gpioa.pa6.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
-    // let mosi = gpioa.pa7.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
-
-    // let nss = gpioa.pa4.into_push_pull_output(&mut gpioa.moder, &mut gpioa.otyper);
-
-    // let spi = Spi::spi1(
-    //     dp.SPI1,
-    //     (sck, miso, mosi),
-    //     mpu9250::MODE,
-    //     1.mhz(),
-    //     clocks,
-    //     &mut rcc.apb2,
-    // );
-
-    // let mut mpu9250 = Mpu9250::marg(spi, nss, &mut delay).unwrap();
-
-    // assert_eq!(mpu9250.who_am_i().unwrap(), 0x71);
-    // assert_eq!(mpu9250.ak8963_who_am_i().unwrap(), 0x48);
-
-    let mut beep = beeper::Beeper::new(gpioc);
-    let rb = &mut beep;
-    let rd = &mut delay;
+// IDLE LOOP
+fn idle() -> ! {
+    // Sleep
     loop {
-        rb.off();
-        match rx.read() {
-            Ok(b) => {
-                rb.on();
-                wrt(&mut tx, b, rb, rd, 2000);
-            }
-            Err(nb::Error::Other(e)) => {
-                rb.on();
-                match e {
-                    serial::Error::Framing => {
-                        wrtc(&mut tx, 'f', rb, rd, 2000);
-                        err(rb, rd, 2000);
-                    }
-                    serial::Error::Overrun => {
-                        rx.clear_overrun_error();
-                    }
-                    serial::Error::Parity => {
-                        wrtc(&mut tx, 'p', rb, rd, 2000);
-                        err(rb, rd, 2000);
-                    }
-                    serial::Error::Noise => {
-                        wrtc(&mut tx, 'n', rb, rd, 2000);
-                        err(rb, rd, 2000);
-                    }
-                    _ => {
-                        wrtc(&mut tx, 'u', rb, rd, 2000);
-                        err(rb, rd, 2000);
-                    }
+        rtfm::wfi();
+    }
+}
+
+// TASKS
+// Send back the received byte
+fn echo(_t: &mut Threshold, mut r: USART1_EXTI25::Resources) {
+    let rb = &mut r.BEEPER;
+    let rd = &mut r.DELAY;
+    let mut rx = r.RX;
+    let mut tx = r.TX;
+    rb.off();
+    match rx.read() {
+        Ok(b) => {
+            rb.on();
+            wrt(&mut tx, b, rb, rd, 2000);
+        }
+        Err(nb::Error::Other(e)) => {
+            rb.on();
+            match e {
+                serial::Error::Framing => {
+                    wrtc(&mut tx, 'f', rb, rd, 2000);
+                    err(rb, rd, 2000);
+                }
+                serial::Error::Overrun => {
+                    rx.clear_overrun_error();
+                }
+                serial::Error::Parity => {
+                    wrtc(&mut tx, 'p', rb, rd, 2000);
+                    err(rb, rd, 2000);
+                }
+                serial::Error::Noise => {
+                    wrtc(&mut tx, 'n', rb, rd, 2000);
+                    err(rb, rd, 2000);
+                }
+                _ => {
+                    wrtc(&mut tx, 'u', rb, rd, 2000);
+                    err(rb, rd, 2000);
                 }
             }
-            Err(nb::Error::WouldBlock) => {
-            }
-        };
-    }
+        }
+        Err(nb::Error::WouldBlock) => {
+        }
+    };
 }
 
 fn wrt(tx: &mut hal::serial::Tx<hal::stm32f30x::USART1>,
