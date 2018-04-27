@@ -20,6 +20,7 @@ use hal::delay::Delay;
 // use mpu9250::Mpu9250;
 use hal::serial;
 use rtfm::{app, Threshold};
+use cortex_m::register::msp;
 
 const BAUD_RATE: hal::time::Bps = hal::time::Bps(9600);
 
@@ -89,6 +90,15 @@ fn echo(_t: &mut Threshold, mut r: USART1_EXTI25::Resources) {
             if b == 'r' as u8 {
                 rb.on();
                 system_reset();
+            }
+            if b == 'b' as u8 {
+                // TODO enable irq
+                unsafe {
+                    msp::write(0x1FFFD800);
+                    let f = 0x1FFFD804u32 as *const fn();
+                    (*f)();
+                }
+                loop {}
             }
             wrt(&mut tx, b, rb, rd, 2000);
         }
