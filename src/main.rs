@@ -69,6 +69,13 @@ fn idle() -> ! {
     }
 }
 
+fn system_reset() {
+    let scb = cortex_m::peripheral::SCB::ptr();
+    unsafe {
+        (*scb).aircr.write(0x05FA0000 | 0x04u32);
+    }
+}
+
 // TASKS
 // Send back the received byte
 fn echo(_t: &mut Threshold, mut r: USART1_EXTI25::Resources) {
@@ -81,14 +88,7 @@ fn echo(_t: &mut Threshold, mut r: USART1_EXTI25::Resources) {
         Ok(b) => {
             if b == 'r' as u8 {
                 rb.on();
-                // TODO
-                // movs r3, #0
-                // ldr r3, [r3, #0]
-                // MSR msp, r3
-                unsafe {
-                    let f = 0x1FF00004u32 as *const fn();
-                    (*f)();
-                }
+                system_reset();
             }
             wrt(&mut tx, b, rb, rd, 2000);
         }
