@@ -79,7 +79,17 @@ fn echo(_t: &mut Threshold, mut r: USART1_EXTI25::Resources) {
     rb.off();
     match rx.read() {
         Ok(b) => {
-            rb.on();
+            if b == 'r' as u8 {
+                rb.on();
+                // TODO
+                // movs r3, #0
+                // ldr r3, [r3, #0]
+                // MSR msp, r3
+                unsafe {
+                    let f = 0x00000004 as *const fn();
+                    (*f)();
+                }
+            }
             wrt(&mut tx, b, rb, rd, 2000);
         }
         Err(nb::Error::Other(e)) => {
