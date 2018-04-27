@@ -74,6 +74,25 @@ impl<Wr, CountDown> DebugWrite<char> for DebugWriter<Wr, CountDown>
     }
 }
 
+impl<'a, Wr, CountDown> DebugWrite<&'a [u8]> for DebugWriter<Wr, CountDown>
+    where CountDown: ehal::timer::CountDown<Time=Hertz> + Sized,
+          Wr: ehal::serial::Write<u8> + Sized {
+    fn debug(&mut self, data: &[u8]) {
+        for b in data.iter() {
+            self.debug(b.clone());
+        }
+        match self.tx.flush() {
+            Ok(_) => {}
+            Err(_) => self.error('.')
+        };
+    }
+
+    fn error(&mut self, data: &[u8]) {
+        self.debug(data);
+        self.err_beep();
+    }
+}
+
 pub trait DebugWrite<Data> {
     fn debug(&mut self, data: Data);
     fn error(&mut self, data: Data);

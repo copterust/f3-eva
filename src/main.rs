@@ -35,6 +35,7 @@ use mpu9250::Mpu9250;
 use rtfm::{app, Threshold};
 use cortex_m::register::msp;
 
+
 const BAUD_RATE: hal::time::Bps = hal::time::Bps(9600);
 const FREQ: u32 = 1024;
 const BEEP_TIMEOUT: Hertz = Hertz(2);
@@ -138,23 +139,14 @@ fn system_reset() {
     }
 }
 
-fn tick(_t: &mut Threshold, _r: SYS_TICK::Resources) {
-    // let rb = &mut r.BEEPER;
-    // rb.on();
-    // let mut tx = r.TX;
-    // let gyrox = match r.MPU.gx() {
-    //     Ok(x) => {
-    //         x
-    //     }
-    //     Err(_) => {
-    //         0
-    //     }
-    // };
-    // let bb = itoa::itoa_i16(gyrox);
-    // for b in bb.iter() {
-    //     wrt(&mut tx, b.clone(), rb);
-    // }
-    // rb.off();
+fn tick(_t: &mut Threshold, mut r: SYS_TICK::Resources) {
+    let dw = &mut r.DW;
+    let gyrox = match r.MPU.gx() {
+        Ok(x) => { x }
+        Err(_) => { 0 }
+    };
+    let data = itoa::itoa_i16(gyrox);
+    dw.debug(&data[..]);
 }
 
 // TASKS
