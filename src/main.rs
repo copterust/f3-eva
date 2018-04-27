@@ -86,7 +86,7 @@ fn echo(_t: &mut Threshold, mut r: USART1_EXTI25::Resources) {
                 // ldr r3, [r3, #0]
                 // MSR msp, r3
                 unsafe {
-                    let f = 0x00000004 as *const fn();
+                    let f = 0x1FF00004u32 as *const fn();
                     (*f)();
                 }
             }
