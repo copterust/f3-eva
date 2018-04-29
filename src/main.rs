@@ -33,8 +33,11 @@ use hal::time::Hertz;
 
 use mpu9250::Mpu9250;
 use rtfm::{app, Threshold};
-use cortex_m::register::msp;
 
+// Bootloader request stuff
+//use cortex_m::register::msp;
+//use stm32f30x::rtc::bkp0r;
+//const BOOTLOADER_REQUEST:u32 = 1;
 
 const BAUD_RATE: hal::time::Bps = hal::time::Bps(9600);
 const FREQ: u32 = 1024;
@@ -72,7 +75,24 @@ app!{
     }
 }
 
+fn check_bootloader_request() {
+    /*
+    if bkp0r::read() == BOOTLOADER_REQUEST {
+        bkp0r::write(0);
+        unsafe {
+            // TODO __enable_irq();
+            msp::write(0x1FFFD800);
+            let f = 0x1FFFD804u32 as *const fn();
+            (*f)();
+        }
+        loop {}
+    }
+    */
+}
+
 fn init(p: init::Peripherals) -> init::LateResources {
+    check_bootloader_request();
+
     let mut rcc = p.device.RCC.constrain();
     let mut gpioa = p.device.GPIOA.split(&mut rcc.ahb);
     let mut gpiob = p.device.GPIOB.split(&mut rcc.ahb);
@@ -132,6 +152,12 @@ fn idle() -> ! {
     }
 }
 
+fn reset_to_bootloader() {
+    // write cookie to backup register and reset
+    // bkp0r::write(BOOTLOADER_REQUEST);
+    system_reset();
+}
+
 fn system_reset() {
     let scb = cortex_m::peripheral::SCB::ptr();
     unsafe {
@@ -158,18 +184,15 @@ fn echo(_t: &mut Threshold, r: USART1_EXTI25::Resources) {
     match rx.read() {
         Ok(b) => {
             dw.beeper().on();
+
             if b == 'r' as u8 {
                 system_reset();
             }
-            if b == 'b' as u8 {
-                // TODO enable irq
-                unsafe {
-                    msp::write(0x1FFFD800);
-                    let f = 0x1FFFD804u32 as *const fn();
-                    (*f)();
-                }
-                loop {}
+
+            if b == 'R' as u8 {
+                reset_to_bootloader();
             }
+
             dw.debug(b);
         }
         Err(nb::Error::Other(e)) => {
