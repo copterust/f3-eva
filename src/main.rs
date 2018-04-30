@@ -35,9 +35,9 @@ use mpu9250::Mpu9250;
 use rtfm::{app, Threshold};
 
 // Bootloader request stuff
-//use cortex_m::register::msp;
-//use stm32f30x::rtc::bkp0r;
-//const BOOTLOADER_REQUEST:u32 = 1;
+use cortex_m::register::msp;
+
+const BOOTLOADER_REQUEST:u32 = 1;
 
 const BAUD_RATE: hal::time::Bps = hal::time::Bps(9600);
 const FREQ: u32 = 1024;
@@ -76,9 +76,9 @@ app!{
 }
 
 fn check_bootloader_request() {
-    /*
-    if bkp0r::read() == BOOTLOADER_REQUEST {
-        bkp0r::write(0);
+    let bkp0r = unsafe { &(*stm32f30x::RTC::ptr()).bkp0r };
+    if bkp0r.read().bits() == BOOTLOADER_REQUEST {
+        bkp0r.write(|w| unsafe { w.bits(0) });
         unsafe {
             // TODO __enable_irq();
             msp::write(0x1FFFD800);
@@ -87,7 +87,6 @@ fn check_bootloader_request() {
         }
         loop {}
     }
-    */
 }
 
 fn init(p: init::Peripherals) -> init::LateResources {

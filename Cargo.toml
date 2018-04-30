@@ -40,4 +40,4 @@ version = "0.3.1"
 
 [dependencies.mpu9250]
 version = "0.1.0"
-git = "https://github.com/japaric/mpu9250.git"
+git = "https://github.com/copterust/mpu9250.git"
