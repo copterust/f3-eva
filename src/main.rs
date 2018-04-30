@@ -76,7 +76,7 @@ app!{
 }
 
 fn init(p: init::Peripherals) -> init::LateResources {
-    check_bootloader_request();
+    check_bootloader_request(p.device.RTC);
 
     let mut rcc = p.device.RCC.constrain();
     let mut gpioa = p.device.GPIOA.split(&mut rcc.ahb);
@@ -136,8 +136,8 @@ fn idle() -> ! {
     }
 }
 
-fn check_bootloader_request() {
-    let bkp0r = unsafe { &(*stm32f30x::RTC::ptr()).bkp0r };
+fn check_bootloader_request(rtc: hal::stm32f30x::RTC) {
+    let bkp0r = &(*rtc).bkp0r;
     if bkp0r.read().bits() == BOOTLOADER_REQUEST {
         bkp0r.write(|w| unsafe { w.bits(0) });
         unsafe {
