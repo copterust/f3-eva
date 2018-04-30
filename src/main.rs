@@ -75,20 +75,6 @@ app!{
     }
 }
 
-fn check_bootloader_request() {
-    let bkp0r = unsafe { &(*stm32f30x::RTC::ptr()).bkp0r };
-    if bkp0r.read().bits() == BOOTLOADER_REQUEST {
-        bkp0r.write(|w| unsafe { w.bits(0) });
-        unsafe {
-            // TODO __enable_irq();
-            msp::write(0x1FFFD800);
-            let f = 0x1FFFD804u32 as *const fn();
-            (*f)();
-        }
-        loop {}
-    }
-}
-
 fn init(p: init::Peripherals) -> init::LateResources {
     check_bootloader_request();
 
@@ -113,7 +99,6 @@ fn init(p: init::Peripherals) -> init::LateResources {
     let (mut tx, rx) = serial.split();
     // COBS frame
     tx.write(0x00).unwrap();
-
 
     // SPI1
     let nss = gpiob.pb9.into_push_pull_output(&mut gpiob.moder, &mut gpiob.otyper);
@@ -148,6 +133,20 @@ fn idle() -> ! {
     // Sleep
     loop {
         rtfm::wfi();
+    }
+}
+
+fn check_bootloader_request() {
+    let bkp0r = unsafe { &(*stm32f30x::RTC::ptr()).bkp0r };
+    if bkp0r.read().bits() == BOOTLOADER_REQUEST {
+        bkp0r.write(|w| unsafe { w.bits(0) });
+        unsafe {
+            // TODO __enable_irq();
+            msp::write(0x1FFFD800);
+            let f = 0x1FFFD804u32 as *const fn();
+            (*f)();
+        }
+        loop {}
     }
 }
 
