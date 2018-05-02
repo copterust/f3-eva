@@ -60,13 +60,14 @@ app!{
     resources: {
         static DW: DW;
         static RX: Rx<hal::stm32f30x::USART1>;
+        static RTC: hal::stm32f30x::RTC;
         static MPU: MPU9250;
     },
 
     tasks: {
         USART1_EXTI25: {
             path: echo,
-            resources: [DW, RX],
+            resources: [DW, RX, RTC],
         },
         SYS_TICK: {
             path: tick,
@@ -76,7 +77,10 @@ app!{
 }
 
 fn init(p: init::Peripherals) -> init::LateResources {
-    check_bootloader_request(p.device.RTC);
+    {
+        let bkp0r = &(*p.device.RTC).bkp0r;
+        check_bootloader_request(bkp0r);
+    }
 
     let mut rcc = p.device.RCC.constrain();
     let mut gpioa = p.device.GPIOA.split(&mut rcc.ahb);
@@ -125,6 +129,7 @@ fn init(p: init::Peripherals) -> init::LateResources {
 
     init::LateResources { DW: dw,
                           RX: rx,
+                          RTC: p.device.RTC,
                           MPU: mpu9250 }
 }
 
@@ -136,8 +141,7 @@ fn idle() -> ! {
     }
 }
 
-fn check_bootloader_request(rtc: hal::stm32f30x::RTC) {
-    let bkp0r = &(*rtc).bkp0r;
+fn check_bootloader_request(bkp0r: & hal::stm32f30x::rtc::BKP0R) {
     if bkp0r.read().bits() == BOOTLOADER_REQUEST {
         bkp0r.write(|w| unsafe { w.bits(0) });
         unsafe {
@@ -150,13 +154,14 @@ fn check_bootloader_request(rtc: hal::stm32f30x::RTC) {
     }
 }
 
-fn reset_to_bootloader() {
+fn reset_to_bootloader(bkp0r: & hal::stm32f30x::rtc::BKP0R) {
     // write cookie to backup register and reset
-    // bkp0r::write(BOOTLOADER_REQUEST);
+    bkp0r.write(|w| unsafe { w.bits(BOOTLOADER_REQUEST) });
     system_reset();
 }
 
 fn system_reset() {
+    // TODO: propagate via resources
     let scb = cortex_m::peripheral::SCB::ptr();
     unsafe {
         (*scb).aircr.write(0x05FA0000 | 0x04u32);
@@ -188,7 +193,8 @@ fn echo(_t: &mut Threshold, r: USART1_EXTI25::Resources) {
             }
 
             if b == 'R' as u8 {
-                reset_to_bootloader();
+                let bkp0r = &(*r.RTC).bkp0r;
+                reset_to_bootloader(bkp0r);
             }
 
             dw.debug(b);
