@@ -17,8 +17,10 @@ extern crate nb;
 mod beeper;
 mod debug_writer;
 mod itoa;
+mod bootloader;
 
 use debug_writer::DebugWrite;
+use bootloader::Bootloader;
 
 use hal::prelude::*;
 use hal::stm32f30x;
@@ -34,10 +36,6 @@ use hal::time::Hertz;
 use mpu9250::Mpu9250;
 use rtfm::{app, Threshold};
 
-// Bootloader request stuff
-use cortex_m::register::msp;
-
-const BOOTLOADER_REQUEST:u32 = 1;
 
 const BAUD_RATE: hal::time::Bps = hal::time::Bps(9600);
 const FREQ: u32 = 1024;
@@ -60,14 +58,16 @@ app!{
     resources: {
         static DW: DW;
         static RX: Rx<hal::stm32f30x::USART1>;
-        static RTC: hal::stm32f30x::RTC;
+        // can't use bootloader trait here as the size of the resource
+        // should be known at compile time
+        static BOOTLOADER: bootloader::stm32f30x::Bootloader;
         static MPU: MPU9250;
     },
 
     tasks: {
         USART1_EXTI25: {
             path: echo,
-            resources: [DW, RX, RTC],
+            resources: [DW, RX, BOOTLOADER],
         },
         SYS_TICK: {
             path: tick,
@@ -77,10 +77,9 @@ app!{
 }
 
 fn init(p: init::Peripherals) -> init::LateResources {
-    {
-        let bkp0r = &(*p.device.RTC).bkp0r;
-        check_bootloader_request(bkp0r);
-    }
+    let mut bootloader =
+        bootloader::stm32f30x::Bootloader::new(p.device.RTC);
+    bootloader.check_request();
 
     let mut rcc = p.device.RCC.constrain();
     let mut gpioa = p.device.GPIOA.split(&mut rcc.ahb);
@@ -129,7 +128,7 @@ fn init(p: init::Peripherals) -> init::LateResources {
 
     init::LateResources { DW: dw,
                           RX: rx,
-                          RTC: p.device.RTC,
+                          BOOTLOADER: bootloader,
                           MPU: mpu9250 }
 }
 
@@ -138,33 +137,6 @@ fn idle() -> ! {
     // Sleep
     loop {
         rtfm::wfi();
-    }
-}
-
-fn check_bootloader_request(bkp0r: & hal::stm32f30x::rtc::BKP0R) {
-    if bkp0r.read().bits() == BOOTLOADER_REQUEST {
-        bkp0r.write(|w| unsafe { w.bits(0) });
-        unsafe {
-            // TODO __enable_irq();
-            msp::write(0x1FFFD800);
-            let f = 0x1FFFD804u32 as *const fn();
-            (*f)();
-        }
-        loop {}
-    }
-}
-
-fn reset_to_bootloader(bkp0r: & hal::stm32f30x::rtc::BKP0R) {
-    // write cookie to backup register and reset
-    bkp0r.write(|w| unsafe { w.bits(BOOTLOADER_REQUEST) });
-    system_reset();
-}
-
-fn system_reset() {
-    // TODO: propagate via resources
-    let scb = cortex_m::peripheral::SCB::ptr();
-    unsafe {
-        (*scb).aircr.write(0x05FA0000 | 0x04u32);
     }
 }
 
@@ -183,18 +155,18 @@ fn tick(_t: &mut Threshold, mut r: SYS_TICK::Resources) {
 fn echo(_t: &mut Threshold, r: USART1_EXTI25::Resources) {
     let mut rx = r.RX;
     let mut dw = r.DW;
+    let mut bootloader = r.BOOTLOADER;
     dw.beeper().off();
     match rx.read() {
         Ok(b) => {
             dw.beeper().on();
 
             if b == 'r' as u8 {
-                system_reset();
+                bootloader.system_reset();
             }
 
             if b == 'R' as u8 {
-                let bkp0r = &(*r.RTC).bkp0r;
-                reset_to_bootloader(bkp0r);
+                bootloader.to_bootloader();
             }
 
             dw.debug(b);
