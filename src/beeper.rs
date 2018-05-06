@@ -3,7 +3,7 @@
 use hal::prelude::*;
 
 use hal::gpio::gpioc;
-use hal::gpio::gpioc::{PC15};
+use hal::gpio::gpioc::PC15;
 use hal::gpio::{Output, PushPull};
 
 pub struct Beeper {

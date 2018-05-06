@@ -1,6 +1,6 @@
 #![allow(unused)]
 macro_rules! itoa_impl {
-    ($num:expr, $num_digits:expr, $buffer:ident) => (
+    ($num:expr, $num_digits:expr, $buffer:ident) => {
         let mut x = $num;
         $buffer[$num_digits - 1] = '0' as u8;
         let mut i = $num_digits - 1;
@@ -10,7 +10,7 @@ macro_rules! itoa_impl {
             $buffer[i] = ('0' as u8 + digit) as u8;
             i -= 1;
         }
-    );
+    };
 }
 
 pub fn itoa_i16(num: i16) -> [u8; 6] {

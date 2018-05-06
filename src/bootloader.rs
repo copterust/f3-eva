@@ -1,23 +1,22 @@
-
-pub trait Bootloader : Sized + Send {
+pub trait Bootloader: Sized + Send {
     fn check_request(&mut self);
     fn to_bootloader(&mut self);
     fn system_reset(&mut self);
 }
 
 pub mod stm32f30x {
-    extern crate stm32f30x_hal as hal;
     extern crate cortex_m;
+    extern crate stm32f30x_hal as hal;
     use cortex_m::register::msp;
 
     use super::Bootloader as BootloaderTrait;
 
-    const BOOTLOADER_REQUEST:u32 = 1;
-    const STM32_RESET_FN_ADDRESS:u32 = 0x1FFFD804u32;
-    const STM32_BOOTLOADER_ADDRESS:u32 = 0x1FFFD800;
+    const BOOTLOADER_REQUEST: u32 = 1;
+    const STM32_RESET_FN_ADDRESS: u32 = 0x1FFFD804u32;
+    const STM32_BOOTLOADER_ADDRESS: u32 = 0x1FFFD800;
 
     pub struct Bootloader {
-        rtc: hal::stm32f30x::RTC
+        rtc: hal::stm32f30x::RTC,
     }
 
     impl Bootloader {
@@ -57,6 +56,5 @@ pub mod stm32f30x {
                 (*scb).aircr.write(0x05FA0000 | 0x04u32);
             }
         }
-
     }
 }

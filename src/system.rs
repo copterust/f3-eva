@@ -5,4 +5,3 @@ trait System {
     fn reset(&self);
     fn invoke_bootloader(&self);
 }
-

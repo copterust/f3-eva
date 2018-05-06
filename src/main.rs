@@ -6,51 +6,49 @@
 extern crate cortex_m;
 extern crate cortex_m_rtfm as rtfm;
 extern crate panic_abort;
-extern crate embedded_hal as ehal;
-extern crate stm32f30x_hal as hal;
-
-extern crate mpu9250;
 
 extern crate nb;
 
+extern crate embedded_hal as ehal;
+extern crate mpu9250;
+extern crate stm32f30x_hal as hal;
 
 mod beeper;
+mod bootloader;
 mod debug_writer;
 mod itoa;
-mod bootloader;
 
-use debug_writer::DebugWrite;
 use bootloader::Bootloader;
+use debug_writer::DebugWrite;
 
-use hal::prelude::*;
-use hal::stm32f30x;
 use hal::delay::Delay;
-use hal::serial;
-use hal::spi::Spi;
-use hal::serial::{Serial, Tx, Rx};
 use hal::gpio::gpiob;
-use hal::gpio::{Output, PushPull, AF5};
-use hal::timer::{self, Timer};
+use hal::gpio::{AF5, Output, PushPull};
+use hal::prelude::*;
+use hal::serial;
+use hal::serial::{Rx, Serial, Tx};
+use hal::spi::Spi;
+use hal::stm32f30x;
 use hal::time::Hertz;
+use hal::timer::{self, Timer};
 
 use mpu9250::Mpu9250;
 use rtfm::{app, Threshold};
-
 
 const BAUD_RATE: hal::time::Bps = hal::time::Bps(9600);
 const FREQ: u32 = 1024;
 const BEEP_TIMEOUT: Hertz = Hertz(2);
 
 type MPU9250 = mpu9250::Mpu9250<
-        Spi<hal::stm32f30x::SPI1, (gpiob::PB3<AF5>,
-                                   gpiob::PB4<AF5>,
-                                   gpiob::PB5<AF5>)>,
-        gpiob::PB9<Output<PushPull>>,
-        mpu9250::Imu>;
+    Spi<hal::stm32f30x::SPI1, (gpiob::PB3<AF5>, gpiob::PB4<AF5>, gpiob::PB5<AF5>)>,
+    gpiob::PB9<Output<PushPull>>,
+    mpu9250::Imu,
+>;
 
 type DW = debug_writer::DebugWriter<
-        Tx<hal::stm32f30x::USART1>,
-        hal::timer::Timer<cortex_m::peripheral::SYST>>;
+    Tx<hal::stm32f30x::USART1>,
+    hal::timer::Timer<cortex_m::peripheral::SYST>,
+>;
 
 app!{
     device: stm32f30x,
@@ -77,8 +75,7 @@ app!{
 }
 
 fn init(p: init::Peripherals) -> init::LateResources {
-    let mut bootloader =
-        bootloader::stm32f30x::Bootloader::new(p.device.RTC);
+    let mut bootloader = bootloader::stm32f30x::Bootloader::new(p.device.RTC);
     bootloader.check_request();
 
     let mut rcc = p.device.RCC.constrain();
@@ -97,14 +94,19 @@ fn init(p: init::Peripherals) -> init::LateResources {
     let mut serial = Serial::usart1(
         p.device.USART1,
         (txpin, rxpin),
-        BAUD_RATE, clocks, &mut rcc.apb2);
+        BAUD_RATE,
+        clocks,
+        &mut rcc.apb2,
+    );
     serial.listen(serial::Event::Rxne);
     let (mut tx, rx) = serial.split();
     // COBS frame
     tx.write(0x00).unwrap();
 
     // SPI1
-    let nss = gpiob.pb9.into_push_pull_output(&mut gpiob.moder, &mut gpiob.otyper);
+    let nss = gpiob
+        .pb9
+        .into_push_pull_output(&mut gpiob.moder, &mut gpiob.otyper);
     let sck = gpiob.pb3.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
     let miso = gpiob.pb4.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
     let mosi = gpiob.pb5.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
@@ -126,10 +128,12 @@ fn init(p: init::Peripherals) -> init::LateResources {
 
     let dw = debug_writer::DebugWriter::new(tx, timer, beep, BEEP_TIMEOUT);
 
-    init::LateResources { DW: dw,
-                          RX: rx,
-                          BOOTLOADER: bootloader,
-                          MPU: mpu9250 }
+    init::LateResources {
+        DW: dw,
+        RX: rx,
+        BOOTLOADER: bootloader,
+        MPU: mpu9250,
+    }
 }
 
 // IDLE LOOP
@@ -143,8 +147,8 @@ fn idle() -> ! {
 fn tick(_t: &mut Threshold, mut r: SYS_TICK::Resources) {
     let dw = &mut r.DW;
     let gyrox = match r.MPU.gx() {
-        Ok(x) => { x }
-        Err(_) => { 0 }
+        Ok(x) => x,
+        Err(_) => 0,
     };
     let data = itoa::itoa_i16(gyrox);
     dw.debug(&data[..]);
@@ -191,7 +195,6 @@ fn echo(_t: &mut Threshold, r: USART1_EXTI25::Resources) {
                 }
             }
         }
-        Err(nb::Error::WouldBlock) => {
-        }
+        Err(nb::Error::WouldBlock) => {}
     };
 }
