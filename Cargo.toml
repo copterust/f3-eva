@@ -20,9 +20,8 @@ version = "0.1.0"
 git = "https://github.com/copterust/stm32f30x-hal.git"
 
 [dependencies.stm32f30x]
-version = "0.6.0"
+version = "0.6.2"
 features = ["rt"]
-git = "https://github.com/copterust/stm32f30x.git"
 
 [dependencies.panic-abort]
 version = "0.1.1"
