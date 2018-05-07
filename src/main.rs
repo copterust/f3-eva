@@ -75,7 +75,7 @@ app!{
 }
 
 fn init(p: init::Peripherals) -> init::LateResources {
-    let mut bootloader = bootloader::stm32f30x::Bootloader::new(p.device.RTC);
+    let mut bootloader = bootloader::stm32f30x::Bootloader::new(p.device.RTC, p.core.SCB);
     bootloader.check_request();
 
     let mut rcc = p.device.RCC.constrain();

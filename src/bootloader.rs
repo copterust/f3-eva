@@ -7,6 +7,9 @@ pub trait Bootloader: Sized + Send {
 pub mod stm32f30x {
     extern crate cortex_m;
     extern crate stm32f30x_hal as hal;
+
+    use core;
+    use cortex_m::peripheral;
     use cortex_m::register::msp;
 
     use super::Bootloader as BootloaderTrait;
@@ -14,14 +17,16 @@ pub mod stm32f30x {
     const BOOTLOADER_REQUEST: u32 = 1;
     const STM32_RESET_FN_ADDRESS: u32 = 0x1FFFD804u32;
     const STM32_BOOTLOADER_ADDRESS: u32 = 0x1FFFD800;
+    static mut USER_RESET: Option<extern "C" fn()> = None;
 
     pub struct Bootloader {
         rtc: hal::stm32f30x::RTC,
+        scb: peripheral::SCB,
     }
 
     impl Bootloader {
-        pub fn new(rtc: hal::stm32f30x::RTC) -> Self {
-            Bootloader { rtc }
+        pub fn new(rtc: hal::stm32f30x::RTC, scb: peripheral::SCB) -> Self {
+            Bootloader { rtc, scb }
         }
     }
 
@@ -32,9 +37,11 @@ pub mod stm32f30x {
                 bkp0r.write(|w| unsafe { w.bits(0) });
                 unsafe {
                     // TODO __enable_irq();
+                    self.scb.vtor.write(STM32_BOOTLOADER_ADDRESS);
                     msp::write(STM32_BOOTLOADER_ADDRESS);
                     let f = STM32_RESET_FN_ADDRESS as *const fn();
-                    (*f)();
+                    USER_RESET = Some(core::mem::transmute(f));
+                    (USER_RESET.unwrap())();
                 }
                 loop {}
             }
