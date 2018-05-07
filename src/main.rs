@@ -126,8 +126,8 @@ fn init(p: init::Peripherals) -> init::LateResources {
     timer.listen(timer::Event::TimeOut);
     let beep = beeper::Beeper::new(gpioc);
 
-    let dw = debug_writer::DebugWriter::new(tx, timer, beep, BEEP_TIMEOUT);
-
+    let mut dw = debug_writer::DebugWriter::new(tx, timer, beep, BEEP_TIMEOUT);
+    dw.debug('i');
     init::LateResources {
         DW: dw,
         RX: rx,
@@ -144,14 +144,14 @@ fn idle() -> ! {
     }
 }
 
-fn tick(_t: &mut Threshold, mut r: SYS_TICK::Resources) {
-    let dw = &mut r.DW;
-    let gyrox = match r.MPU.gx() {
-        Ok(x) => x,
-        Err(_) => 0,
-    };
-    let data = itoa::itoa_i16(gyrox);
-    dw.debug(&data[..]);
+fn tick(_t: &mut Threshold, _r: SYS_TICK::Resources) {
+    // let dw = &mut r.DW;
+    // let gyrox = match r.MPU.gx() {
+    //     Ok(x) => x,
+    //     Err(_) => 0,
+    // };
+    // let data = itoa::itoa_i16(gyrox);
+    // dw.debug(&data[..]);
 }
 
 // TASKS
@@ -160,11 +160,8 @@ fn echo(_t: &mut Threshold, r: USART1_EXTI25::Resources) {
     let mut rx = r.RX;
     let mut dw = r.DW;
     let mut bootloader = r.BOOTLOADER;
-    dw.beeper().off();
     match rx.read() {
         Ok(b) => {
-            dw.beeper().on();
-
             if b == 'r' as u8 {
                 bootloader.system_reset();
             }
@@ -175,26 +172,23 @@ fn echo(_t: &mut Threshold, r: USART1_EXTI25::Resources) {
 
             dw.debug(b);
         }
-        Err(nb::Error::Other(e)) => {
-            dw.beeper().on();
-            match e {
-                serial::Error::Framing => {
-                    dw.error('f');
-                }
-                serial::Error::Overrun => {
-                    rx.clear_overrun_error();
-                }
-                serial::Error::Parity => {
-                    dw.error('p');
-                }
-                serial::Error::Noise => {
-                    dw.error('n');
-                }
-                _ => {
-                    dw.error('u');
-                }
+        Err(nb::Error::Other(e)) => match e {
+            serial::Error::Framing => {
+                dw.error('f');
             }
-        }
+            serial::Error::Overrun => {
+                rx.clear_overrun_error();
+            }
+            serial::Error::Parity => {
+                dw.error('p');
+            }
+            serial::Error::Noise => {
+                dw.error('n');
+            }
+            _ => {
+                dw.error('u');
+            }
+        },
         Err(nb::Error::WouldBlock) => {}
     };
 }
