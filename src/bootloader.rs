@@ -11,6 +11,8 @@ pub mod stm32f30x {
     use core;
     use cortex_m::peripheral;
     use cortex_m::register::msp;
+    use cortex_m::interrupt;
+    use stm32f30x::RCC;
 
     use super::Bootloader as BootloaderTrait;
 
@@ -48,12 +50,39 @@ pub mod stm32f30x {
         }
 
         fn to_bootloader(&mut self) {
-            {
-                let bkp0r = &(*self.rtc).bkp0r;
-                // write cookie to backup register and reset
-                bkp0r.write(|w| unsafe { w.bits(BOOTLOADER_REQUEST) });
+            unsafe {
+                interrupt::disable();
+                // Set clock configuration to the reset state
+                let rcc = &*RCC::ptr();
+                rcc.cr.write(|w| w.hsion().set_bit());
+                rcc.cr.write(|w| w.hsitrim().bits(0x80));
+                rcc.cfgr.write(|w| w.sw().bits(0x00));
+                rcc.cfgr.write(|w| w.hpre().bits(0x00));
+                rcc.cfgr.write(|w| w.ppre1().bits(0x00));
+                rcc.cfgr.write(|w| w.ppre2().bits(0x00));
+                rcc.cfgr.write(|w| w.mco().bits(0x00));
+                rcc.cr.write(|w| w.pllon().clear_bit());
+                rcc.cr.write(|w| w.csson().clear_bit());
+                rcc.cr.write(|w| w.hseon().clear_bit());
+                rcc.cr.write(|w| w.hsebyp().clear_bit());
+                rcc.cfgr.write(|w| w.bits(0x0));
+                rcc.cfgr2.write(|w| w.bits(0x0));
+                rcc.cfgr3.write(|w| w.bits(0x0));
+                rcc.cir.write(|w| w.bits(0x0));
+                // Deinitialize perepherials
+                rcc.apb1rstr.write(|w| w.bits(0xFFFFFFFFu32));
+                rcc.apb1rstr.write(|w| w.bits(0x00000000u32));
+                rcc.apb2rstr.write(|w| w.bits(0xFFFFFFFFu32));
+                rcc.apb2rstr.write(|w| w.bits(0x00000000u32));
+                rcc.ahbenr.write(|w| w.bits(0xFFFFFFFFu32));
+                rcc.ahbenr.write(|w| w.bits(0x00000000u32));
+                // Jump to bootloader
+                interrupt::enable();
+                msp::write(0x1FFFD800);
+                let bootloader_address = 0x1FFFD804u32 as *const fn();
+                (*bootloader_address)();
             }
-            self.system_reset();
+            loop {}
         }
 
         fn system_reset(&mut self) {
