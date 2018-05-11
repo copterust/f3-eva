@@ -78,7 +78,8 @@ pub mod stm32f30x {
                 rcc.ahbenr.write(|w| w.bits(0x00000000u32));
                 // Jump to bootloader
                 interrupt::enable();
-                msp::write(0x1FFFD800);
+                let n = core::ptr::read(0x1FFFD800u32 as *const u32);
+                msp::write(n);
                 let bootloader_address = 0x1FFFD804u32 as *const fn();
                 (*bootloader_address)();
             }
