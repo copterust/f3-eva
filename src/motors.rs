@@ -1,3 +1,22 @@
-use gpio::gpioa::{PA0, PA1, PA2, PA3};
-use gpio::{Alternate, PushPull};
-use stm32f30x::TIM2;
+pub trait Motor {
+    fn write(&mut Self);
+}
+
+pub mod stm32f30x {
+    pub struct MotorPWM {
+
+    }
+
+    impl MotorPWM {
+        fn new() -> Self {
+            MotorPWM { }
+        }
+    }
+
+    impl MotorTrait for MotorPWM {
+        fn write(&mut Self) {
+
+        }
+    }
+}
+
