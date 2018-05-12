@@ -19,6 +19,8 @@ mod motors;
 mod debug_writer;
 mod itoa;
 
+use motors::Motor;
+
 use bootloader::Bootloader;
 use debug_writer::DebugWrite;
 
@@ -61,7 +63,7 @@ app!{
         // should be known at compile time
         static BOOTLOADER: bootloader::stm32f30x::Bootloader;
         static MPU: MPU9250;
-        static MOTORS: motors::stm32f30x::MotorPWM;
+        static MOTORS: motors::f3evo::MotorPWM;
     },
 
     tasks: {
@@ -128,16 +130,15 @@ fn init(p: init::Peripherals) -> init::LateResources {
     timer.listen(timer::Event::TimeOut);
     let beep = beeper::Beeper::new(gpioc);
 
-    let motors = motors::stm32f30x::MotorPWM::new();
-
     let mut dw = debug_writer::DebugWriter::new(tx, timer, beep, BEEP_TIMEOUT);
     dw.debug('i');
+    let motor = motors::f3evo::MotorPWM::new();
     init::LateResources {
         DW: dw,
         RX: rx,
         BOOTLOADER: bootloader,
         MPU: mpu9250,
-        MOTORS: motors,
+        MOTORS: motor,
     }
 }
 
@@ -165,16 +166,17 @@ fn echo(_t: &mut Threshold, r: USART1_EXTI25::Resources) {
     let mut rx = r.RX;
     let mut dw = r.DW;
     let mut bootloader = r.BOOTLOADER;
+    let mut motor = r.MOTORS;
     match rx.read() {
         Ok(b) => {
             if b == 'r' as u8 {
+                motor.write();
                 bootloader.system_reset();
             }
 
             if b == 'R' as u8 {
                 bootloader.to_bootloader();
             }
-
             dw.debug(b);
         }
         Err(nb::Error::Other(e)) => match e {

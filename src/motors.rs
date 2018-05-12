@@ -2,7 +2,7 @@ pub trait Motor: Sized + Send {
     fn write(&mut self);
 }
 
-pub mod stm32f30x {
+pub mod f3evo {
     use super::Motor as MotorTrait;
 
     pub struct MotorPWM {
