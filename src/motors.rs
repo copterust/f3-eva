@@ -20,5 +20,22 @@ pub mod stm32f30x {
 
         }
     }
+/*
+    pub struct MotorDSHOT {
+
+    }
+
+    impl MotorDSHOT {
+        pub fn new() -> Self {
+            MotorDSHOT { }
+        }
+    }
+
+    impl MotorTrait for MotorDSHOT {
+        fn write(&mut self) {
+
+        }
+    }
+*/
 }
 
