@@ -15,6 +15,7 @@ extern crate stm32f30x_hal as hal;
 
 mod beeper;
 mod bootloader;
+mod motors;
 mod debug_writer;
 mod itoa;
 
@@ -60,12 +61,13 @@ app!{
         // should be known at compile time
         static BOOTLOADER: bootloader::stm32f30x::Bootloader;
         static MPU: MPU9250;
+        static MOTORS: motors::stm32f30x::MotorPWM;
     },
 
     tasks: {
         USART1_EXTI25: {
             path: echo,
-            resources: [DW, RX, BOOTLOADER],
+            resources: [DW, RX, BOOTLOADER, MOTORS],
         },
         SYS_TICK: {
             path: tick,
@@ -126,6 +128,8 @@ fn init(p: init::Peripherals) -> init::LateResources {
     timer.listen(timer::Event::TimeOut);
     let beep = beeper::Beeper::new(gpioc);
 
+    let motors = motors::stm32f30x::MotorPWM::new();
+
     let mut dw = debug_writer::DebugWriter::new(tx, timer, beep, BEEP_TIMEOUT);
     dw.debug('i');
     init::LateResources {
@@ -133,6 +137,7 @@ fn init(p: init::Peripherals) -> init::LateResources {
         RX: rx,
         BOOTLOADER: bootloader,
         MPU: mpu9250,
+        MOTORS: motors,
     }
 }
 
