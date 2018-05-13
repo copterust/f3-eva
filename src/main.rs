@@ -79,7 +79,7 @@ app!{
 }
 
 fn init(p: init::Peripherals) -> init::LateResources {
-    let bootloader = bootloader::stm32f30x::Bootloader::new();
+    let bootloader = bootloader::stm32f30x::Bootloader::new(p.core.SCB);
 
     let mut rcc = p.device.RCC.constrain();
     let mut gpioa = p.device.GPIOA.split(&mut rcc.ahb);
