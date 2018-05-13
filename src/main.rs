@@ -15,9 +15,9 @@ extern crate stm32f30x_hal as hal;
 
 mod beeper;
 mod bootloader;
-mod motors;
 mod debug_writer;
 mod itoa;
+mod motors;
 
 use motors::Motor;
 

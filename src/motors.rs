@@ -5,22 +5,18 @@ pub trait Motor: Sized + Send {
 pub mod f3evo {
     use super::Motor as MotorTrait;
 
-    pub struct MotorPWM {
-
-    }
+    pub struct MotorPWM {}
 
     impl MotorPWM {
         pub fn new() -> Self {
-            MotorPWM { }
+            MotorPWM {}
         }
     }
 
     impl MotorTrait for MotorPWM {
-        fn write(&mut self) {
-
-        }
+        fn write(&mut self) {}
     }
-/*
+    /*
     pub struct MotorDSHOT {
 
     }
@@ -38,4 +34,3 @@ pub mod f3evo {
     }
 */
 }
-

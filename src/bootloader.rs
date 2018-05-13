@@ -8,23 +8,20 @@ pub mod stm32f30x {
     extern crate stm32f30x_hal as hal;
 
     use core;
-    use cortex_m::register::msp;
     use cortex_m::interrupt;
+    use cortex_m::register::msp;
 
     use super::Bootloader as BootloaderTrait;
 
-    pub struct Bootloader {
-
-    }
+    pub struct Bootloader {}
 
     impl Bootloader {
         pub fn new() -> Self {
-            Bootloader { }
+            Bootloader {}
         }
     }
 
     impl BootloaderTrait for Bootloader {
-    
         fn to_bootloader(&mut self) {
             unsafe {
                 interrupt::enable();
