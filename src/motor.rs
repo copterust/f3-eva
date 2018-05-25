@@ -1,12 +1,11 @@
-pub trait Motor {
-    fn set_rpm(rpm: f32);
+pub trait Motor: Sized {
+    fn set_rpm(&mut self, rpm: f32);
 }
 
-pub mod Brushed {
+pub mod brushed {
     use super::Motor as MotorTrait;
 
-    pub struct Coreless {
-    }
+    pub struct Coreless {}
 
     impl Coreless {
         pub fn new() -> Self {
@@ -15,9 +14,7 @@ pub mod Brushed {
     }
 
     impl MotorTrait for Coreless {
-        fn set_rpm(rpm: f32) {
-            
-        }
+        fn set_rpm(&mut self, _rpm: f32) {}
     }
 }
 

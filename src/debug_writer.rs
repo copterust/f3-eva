@@ -29,11 +29,7 @@ where
         }
     }
 
-    pub fn beeper(&mut self) -> &mut beeper::Beeper {
-        &mut self.beeper
-    }
-
-    fn err_beep(&mut self) {
+    pub fn err_beep(&mut self) {
         self.beeper.on();
         self.delay();
         self.beeper.off();
