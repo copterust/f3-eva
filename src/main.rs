@@ -17,9 +17,9 @@ mod beeper;
 mod bootloader;
 mod debug_writer;
 mod itoa;
-mod motors;
+mod motor;
 
-use motors::Motor;
+use motor::Brushed::Coreless as CorelessMotor;
 
 use bootloader::Bootloader;
 use debug_writer::DebugWrite;
@@ -63,7 +63,7 @@ app!{
         // should be known at compile time
         static BOOTLOADER: bootloader::stm32f30x::Bootloader;
         static MPU: MPU9250;
-        static MOTORS: motors::f3evo::MotorPWM;
+        static MOTORS: CorelessMotor;
     },
 
     tasks: {
@@ -131,7 +131,7 @@ fn init(p: init::Peripherals) -> init::LateResources {
 
     let mut dw = debug_writer::DebugWriter::new(tx, timer, beep, BEEP_TIMEOUT);
     dw.debug('i');
-    let motor = motors::f3evo::MotorPWM::new();
+    let motor = CorelessMotor::new();
     init::LateResources {
         DW: dw,
         RX: rx,
@@ -169,7 +169,7 @@ fn echo(_t: &mut Threshold, r: USART1_EXTI25::Resources) {
     match rx.read() {
         Ok(b) => {
             if b == 'r' as u8 {
-                motor.write();
+                motor.set_rpm(1.0);
                 bootloader.system_reset();
             }
 
