@@ -35,7 +35,7 @@ use hal::serial::{Rx, Serial, Tx};
 use hal::time::Hertz;
 use hal::timer::{self, Timer};
 
-use cortex_m::asm;
+// use cortex_m::asm;
 use rt::ExceptionFrame;
 use stm32f30x::Interrupt;
 // use mpu9250::Mpu9250;
@@ -118,10 +118,8 @@ fn main() -> ! {
 
     let mut dw = debug_writer::DebugWriter::new(tx, timer, beep, BEEP_TIMEOUT);
     dw.debug('i');
+    dw.err_beep();
     // let motor = motors::f3evo::MotorPWM::new();
-
-    let mut nvic = core.NVIC;
-    nvic.enable(Interrupt::USART1_EXTI25);
 
     unsafe {
         DW = Some(dw);
@@ -129,9 +127,14 @@ fn main() -> ! {
         RX = Some(rx);
     }
 
-    loop {
-        asm::bkpt();
-    }
+    unsafe { cortex_m::interrupt::enable() };
+    let mut nvic = core.NVIC;
+    let prio_bits = stm32f30x::NVIC_PRIO_BITS;
+    let hw = ((1 << prio_bits) - 1u8) << (8 - prio_bits);
+    unsafe { nvic.set_priority(Interrupt::USART1_EXTI25, hw) };
+    nvic.enable(Interrupt::USART1_EXTI25);
+
+    loop {}
 }
 
 unsafe fn extract<T>(opt: &'static mut Option<T>) -> &'static mut T {
