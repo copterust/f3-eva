@@ -18,8 +18,10 @@ mod bootloader;
 mod debug_writer;
 mod itoa;
 mod motor;
+mod esc;
 
 use motor::Brushed::Coreless as CorelessMotor;
+use esc::PWM::Controller as ESC;
 
 use bootloader::Bootloader;
 use debug_writer::DebugWrite;
@@ -64,12 +66,13 @@ app!{
         static BOOTLOADER: bootloader::stm32f30x::Bootloader;
         static MPU: MPU9250;
         static MOTORS: CorelessMotor;
+        static ESC: ESC;
     },
 
     tasks: {
         USART1_EXTI25: {
             path: echo,
-            resources: [DW, RX, BOOTLOADER, MOTORS],
+            resources: [DW, RX, BOOTLOADER, MOTORS, ESC],
         },
         SYS_TICK: {
             path: tick,
@@ -131,6 +134,7 @@ fn init(p: init::Peripherals) -> init::LateResources {
 
     let mut dw = debug_writer::DebugWriter::new(tx, timer, beep, BEEP_TIMEOUT);
     dw.debug('i');
+    let esc = ESC::new();
     let motor = CorelessMotor::new();
     init::LateResources {
         DW: dw,
