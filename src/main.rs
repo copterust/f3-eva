@@ -95,16 +95,16 @@ fn main() -> ! {
     tx.write(0x00).unwrap();
 
     // SPI1
-    let nss = gpiob
+    let ncs = gpiob
         .pb9
         .into_push_pull_output(&mut gpiob.moder, &mut gpiob.otyper);
-    let sck = gpiob.pb3.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
-    let miso = gpiob.pb4.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
-    let mosi = gpiob.pb5.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
+    let scl_sck = gpiob.pb3.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
+    let sda_sdi_mosi = gpiob.pb5.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
+    let ad0_sdo_miso = gpiob.pb4.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
 
     let spi = Spi::spi1(
         device.SPI1,
-        (sck, miso, mosi),
+        (scl_sck, ad0_sdo_miso, sda_sdi_mosi),
         mpu9250::MODE,
         1.mhz(),
         clocks,
@@ -112,7 +112,7 @@ fn main() -> ! {
     );
 
     let mut delay = Delay::new(core.SYST, clocks);
-    let mut mpu9250 = Mpu9250::imu(spi, nss, &mut delay).unwrap();
+    let mut mpu9250 = Mpu9250::imu(spi, ncs, &mut delay).unwrap();
     mpu9250.a_scale(mpu9250::FSScale::_01).unwrap();
     mpu9250.g_scale(mpu9250::FSScale::_01).unwrap();
 

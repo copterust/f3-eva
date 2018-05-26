@@ -1,5 +1,5 @@
-extern crate embedded_hal as ehal;
-extern crate nb;
+use ehal;
+use nb;
 
 use beeper;
 use hal::time::Hertz;
@@ -47,7 +47,7 @@ where
     Wr: ehal::serial::Write<u8> + Sized,
 {
     fn debug(&mut self, data: u8) {
-        match self.tx.write(data) {
+        match nb::block!(self.tx.write(data)) {
             Ok(_) => {}
             Err(_) => {
                 self.blink();
@@ -88,7 +88,7 @@ where
     fn debug(&mut self, data: &[u8]) {
         for b in data.iter() {
             self.debug(b.clone());
-            self.delay();
+            // self.delay();
         }
         match self.tx.flush() {
             Ok(_) => {}
