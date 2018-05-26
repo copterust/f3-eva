@@ -37,5 +37,5 @@ version = "0.5.2"
 version = "0.5.1"
 
 [dependencies.mpu9250]
-version = "0.1.0"
 git = "https://github.com/copterust/mpu9250.git"
+rev = "d952b91fd0692cafc3fd27d81f1ccf88de4a21a9"

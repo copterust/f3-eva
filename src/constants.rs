@@ -20,6 +20,7 @@ pub mod messages {
     pub const PARITY_ERROR: char = 'p';
     pub const NOISE: char = 'n';
     pub const UNKNOWN_ERROR: char = 'u';
+    pub const ERROR: char = 'e';
 
     pub const HARD_FAULT: char = 'h';
     pub const DEFAULT_INTERRUPT: char = 'd';

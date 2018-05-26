@@ -146,12 +146,17 @@ fn main() -> ! {
     dw.debug(constants::messages::INIT);
     dw.blink();
 
+    let mut c = 0;
     loop {
         timer3.start(constants::TICK_TIMEOUT);
         while let Err(nb::Error::WouldBlock) = timer3.wait() {}
-        dw.debug(constants::messages::TICK);
-        // trigger the `EXTI0` interrupt
-        nvic.set_pending(Interrupt::EXTI0);
+        c += 1;
+        if c == 10 {
+            dw.debug(constants::messages::TICK);
+            // trigger the `EXTI0` interrupt
+            nvic.set_pending(Interrupt::EXTI0);
+            c = 0;
+        }
     }
 }
 
@@ -166,12 +171,15 @@ interrupt!(EXTI0, exti0);
 fn exti0() {
     let dw = unsafe { extract(&mut DW) };
     let mpu = unsafe { extract(&mut MPU) };
-    let gyrox = match mpu.gx() {
-        Ok(x) => x,
-        Err(_) => 0,
+    match mpu.who_am_i() {
+        Ok(g) => {
+            let data = itoa::itoa_u8(g);
+            dw.debug(data.as_ref());
+        }
+        Err(_) => {
+            dw.debug(constants::messages::ERROR);
+        }
     };
-    let data = itoa::itoa_i16(gyrox);
-    dw.debug(data.as_ref());
 }
 
 interrupt!(USART1_EXTI25, usart1_exti25);

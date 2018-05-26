@@ -19,3 +19,10 @@ pub fn itoa_i16(num: i16) -> [u8; 6] {
     itoa_impl!(num, NUM_DIGITS, buffer);
     return buffer;
 }
+
+pub fn itoa_u8(num: u8) -> [u8; 4] {
+    const NUM_DIGITS: usize = 4;
+    let mut buffer: [u8; NUM_DIGITS] = [' ' as u8; NUM_DIGITS];
+    itoa_impl!(num, NUM_DIGITS, buffer);
+    return buffer;
+}
