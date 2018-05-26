@@ -148,16 +148,15 @@ fn main() -> ! {
     dw.debug(constants::messages::INIT);
     dw.blink();
 
-    let mut c = 0;
+    let mut c = -1;
     loop {
         timer3.start(constants::TICK_TIMEOUT);
         while let Err(nb::Error::WouldBlock) = timer3.wait() {}
-        c += 1;
-        if c == 10 {
+        c = (c + 1) % constants::TICK_PERIOD;
+        if c == 0 {
             dw.debug(constants::messages::TICK);
             // trigger the `EXTI0` interrupt
             nvic.set_pending(Interrupt::EXTI0);
-            c = 0;
         }
     }
 }
@@ -173,10 +172,15 @@ interrupt!(EXTI0, exti0);
 fn exti0() {
     let dw = unsafe { extract(&mut DW) };
     let mpu = unsafe { extract(&mut MPU) };
-    match mpu.who_am_i() {
+    match mpu.gyro() {
         Ok(g) => {
-            let data = itoa::itoa_u8(g);
-            dw.debug(data.as_ref());
+            dw.debug("; x:".as_ref());
+            dw.debug(itoa::itoa_i16(g.x).as_ref());
+            dw.debug("; y:".as_ref());
+            dw.debug(itoa::itoa_i16(g.y).as_ref());
+            dw.debug("; z:".as_ref());
+            dw.debug(itoa::itoa_i16(g.z).as_ref());
+            dw.debug("\r\n".as_ref());
         }
         Err(_) => {
             dw.debug(constants::messages::ERROR);

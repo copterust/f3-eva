@@ -6,6 +6,7 @@ pub const BAUD_RATE: hal::time::Bps = hal::time::Bps(9600);
 
 pub const DEBUG_TIMEOUT: Hertz = Hertz(1);
 pub const TICK_TIMEOUT: Hertz = Hertz(1);
+pub const TICK_PERIOD: i8 = 5;
 
 pub mod messages {
     pub const INIT: char = 'i';

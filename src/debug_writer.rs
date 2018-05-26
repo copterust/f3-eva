@@ -88,7 +88,6 @@ where
     fn debug(&mut self, data: &[u8]) {
         for b in data.iter() {
             self.debug(b.clone());
-            // self.delay();
         }
         match self.tx.flush() {
             Ok(_) => {}
