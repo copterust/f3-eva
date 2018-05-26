@@ -4,6 +4,11 @@ use nb;
 use beeper;
 use hal::time::Hertz;
 
+pub trait DebugWrite<Data> {
+    fn debug(&mut self, data: Data);
+    fn error(&mut self, data: Data);
+}
+
 pub struct DebugWriter<Wr, CountDown>
 where
     CountDown: ehal::timer::CountDown<Time = Hertz> + Sized,
@@ -101,9 +106,19 @@ where
     }
 }
 
-pub trait DebugWrite<Data> {
-    fn debug(&mut self, data: Data);
-    fn error(&mut self, data: Data);
+impl<'a, Wr, CountDown> DebugWrite<&'a str> for DebugWriter<Wr, CountDown>
+where
+    CountDown: ehal::timer::CountDown<Time = Hertz> + Sized,
+    Wr: ehal::serial::Write<u8> + Sized,
+{
+    fn debug(&mut self, data: &str) {
+        self.debug(data.as_bytes());
+    }
+
+    fn error(&mut self, data: &str) {
+        self.debug(data);
+        self.blink();
+    }
 }
 
 // fn delay<CD, T, A>(t: &mut CD, timeout: T)

@@ -9,8 +9,8 @@ pub const TICK_TIMEOUT: Hertz = Hertz(1);
 pub const TICK_PERIOD: i8 = 5;
 
 pub mod messages {
-    pub const INIT: char = 'i';
-    pub const TICK: char = 't';
+    pub const INIT: &'static str = "init\r\n";
+    pub const TICK: &'static str = "tick\r\n";
     // pub const TOCK: char = 'o';
 
     pub const RESET: u8 = 'r' as u8;

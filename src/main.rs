@@ -50,7 +50,6 @@ type MPU9250 = mpu9250::Mpu9250<
     gpiob::PB9<Output<PushPull>>,
     mpu9250::Imu,
 >;
-
 type DW =
     debug_writer::DebugWriter<Tx<hal::stm32f30x::USART1>, hal::timer::Timer<hal::stm32f30x::TIM2>>;
 
@@ -168,24 +167,46 @@ unsafe fn extract<T>(opt: &'static mut Option<T>) -> &'static mut T {
     }
 }
 
-interrupt!(EXTI0, exti0);
-fn exti0() {
-    let dw = unsafe { extract(&mut DW) };
-    let mpu = unsafe { extract(&mut MPU) };
+fn print_gyro(dw: &mut DW, mpu: &mut MPU9250) {
     match mpu.gyro() {
         Ok(g) => {
-            dw.debug("; x:".as_ref());
+            dw.debug("gx:");
             dw.debug(itoa::itoa_i16(g.x).as_ref());
-            dw.debug("; y:".as_ref());
+            dw.debug("; gy:");
             dw.debug(itoa::itoa_i16(g.y).as_ref());
-            dw.debug("; z:".as_ref());
+            dw.debug("; gz:");
             dw.debug(itoa::itoa_i16(g.z).as_ref());
-            dw.debug("\r\n".as_ref());
+            dw.debug("\r\n");
         }
         Err(_) => {
             dw.debug(constants::messages::ERROR);
         }
     };
+}
+
+fn print_accel(dw: &mut DW, mpu: &mut MPU9250) {
+    match mpu.accel() {
+        Ok(a) => {
+            dw.debug("ax:");
+            dw.debug(itoa::itoa_i16(a.x).as_ref());
+            dw.debug("; ay:");
+            dw.debug(itoa::itoa_i16(a.y).as_ref());
+            dw.debug("; az:");
+            dw.debug(itoa::itoa_i16(a.z).as_ref());
+            dw.debug("\r\n");
+        }
+        Err(_) => {
+            dw.debug(constants::messages::ERROR);
+        }
+    };
+}
+
+interrupt!(EXTI0, exti0);
+fn exti0() {
+    let mut dw = unsafe { extract(&mut DW) };
+    let mut mpu = unsafe { extract(&mut MPU) };
+    print_gyro(&mut dw, &mut mpu);
+    print_accel(&mut dw, &mut mpu);
 }
 
 interrupt!(USART1_EXTI25, usart1_exti25);
