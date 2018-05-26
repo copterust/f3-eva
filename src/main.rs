@@ -112,7 +112,9 @@ fn main() -> ! {
     );
 
     let mut delay = Delay::new(core.SYST, clocks);
-    let mpu9250 = Mpu9250::imu(spi, nss, &mut delay).unwrap();
+    let mut mpu9250 = Mpu9250::imu(spi, nss, &mut delay).unwrap();
+    mpu9250.a_scale(mpu9250::FSScale::_01).unwrap();
+    mpu9250.g_scale(mpu9250::FSScale::_01).unwrap();
 
     let mut timer2 = Timer::tim2(device.TIM2, constants::DEBUG_TIMEOUT, clocks, &mut rcc.apb1);
     timer2.listen(timer::Event::TimeOut);
