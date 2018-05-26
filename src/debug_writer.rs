@@ -29,7 +29,7 @@ where
         }
     }
 
-    pub fn err_beep(&mut self) {
+    pub fn blink(&mut self) {
         self.beeper.on();
         self.delay();
         self.beeper.off();
@@ -50,13 +50,13 @@ where
         match self.tx.write(data) {
             Ok(_) => {}
             Err(_) => {
-                self.err_beep();
+                self.blink();
             }
         }
     }
     fn error(&mut self, data: u8) {
         self.debug(data);
-        self.err_beep();
+        self.blink();
     }
 }
 
@@ -69,14 +69,14 @@ where
         match self.tx.write(data as u8) {
             Ok(_) => {}
             Err(_) => {
-                self.err_beep();
+                self.blink();
             }
         }
     }
 
     fn error(&mut self, data: char) {
         self.debug(data);
-        self.err_beep();
+        self.blink();
     }
 }
 
@@ -88,16 +88,17 @@ where
     fn debug(&mut self, data: &[u8]) {
         for b in data.iter() {
             self.debug(b.clone());
+            self.delay();
         }
         match self.tx.flush() {
             Ok(_) => {}
-            Err(_) => self.error('.'),
+            Err(_) => {}
         };
     }
 
     fn error(&mut self, data: &[u8]) {
         self.debug(data);
-        self.err_beep();
+        self.blink();
     }
 }
 

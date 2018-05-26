@@ -18,9 +18,10 @@ extern crate stm32f30x_hal as hal;
 
 mod beeper;
 mod bootloader;
+mod constants;
 mod debug_writer;
-// mod itoa;
 mod esc;
+mod itoa;
 mod motor;
 
 use esc::pwm::Controller as ESC;
@@ -30,29 +31,25 @@ use motor::Motor;
 use bootloader::Bootloader;
 use debug_writer::DebugWrite;
 
-// use hal::gpio::gpiob;
-// use hal::gpio::{AF5, Output, PushPull};
+use hal::delay::Delay;
+use hal::gpio::gpiob;
+use hal::gpio::{AF5, Output, PushPull};
 use hal::prelude::*;
 use hal::serial;
 use hal::serial::{Rx, Serial, Tx};
-// use hal::spi::Spi;
-use hal::time::Hertz;
+use hal::spi::Spi;
 use hal::timer::{self, Timer};
 
 // use cortex_m::asm;
+use mpu9250::Mpu9250;
 use rt::ExceptionFrame;
 use stm32f30x::Interrupt;
-// use mpu9250::Mpu9250;
 
-const BAUD_RATE: hal::time::Bps = hal::time::Bps(9600);
-const FREQ: u32 = 1024;
-const BEEP_TIMEOUT: Hertz = Hertz(2);
-
-// type MPU9250 = mpu9250::Mpu9250<
-//     Spi<hal::stm32f30x::SPI1, (gpiob::PB3<AF5>, gpiob::PB4<AF5>, gpiob::PB5<AF5>)>,
-//     gpiob::PB9<Output<PushPull>>,
-//     mpu9250::Imu,
-// >;
+type MPU9250 = mpu9250::Mpu9250<
+    Spi<hal::stm32f30x::SPI1, (gpiob::PB3<AF5>, gpiob::PB4<AF5>, gpiob::PB5<AF5>)>,
+    gpiob::PB9<Output<PushPull>>,
+    mpu9250::Imu,
+>;
 
 type DW =
     debug_writer::DebugWriter<Tx<hal::stm32f30x::USART1>, hal::timer::Timer<hal::stm32f30x::TIM2>>;
@@ -62,7 +59,7 @@ static mut RX: Option<Rx<hal::stm32f30x::USART1>> = None;
 static mut BOOTLOADER: Option<bootloader::stm32f30x::Bootloader> = None;
 static mut ESC: Option<ESC> = None;
 static mut MOTORS: Option<CorelessMotor> = None;
-//         static MPU: MPU9250;
+static mut MPU: Option<MPU9250> = None;
 
 entry!(main);
 
@@ -73,7 +70,7 @@ fn main() -> ! {
 
     let mut rcc = device.RCC.constrain();
     let mut gpioa = device.GPIOA.split(&mut rcc.ahb);
-    // let mut gpiob = device.GPIOB.split(&mut rcc.ahb);
+    let mut gpiob = device.GPIOB.split(&mut rcc.ahb);
     let gpioc = device.GPIOC.split(&mut rcc.ahb);
 
     let mut flash = device.FLASH.constrain();
@@ -88,7 +85,7 @@ fn main() -> ! {
     let mut serial = Serial::usart1(
         device.USART1,
         (txpin, rxpin),
-        BAUD_RATE,
+        constants::BAUD_RATE,
         clocks,
         &mut rcc.apb2,
     );
@@ -98,31 +95,29 @@ fn main() -> ! {
     tx.write(0x00).unwrap();
 
     // SPI1
-    // let nss = gpiob
-    //     .pb9
-    //     .into_push_pull_output(&mut gpiob.moder, &mut gpiob.otyper);
-    // let sck = gpiob.pb3.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
-    // let miso = gpiob.pb4.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
-    // let mosi = gpiob.pb5.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
+    let nss = gpiob
+        .pb9
+        .into_push_pull_output(&mut gpiob.moder, &mut gpiob.otyper);
+    let sck = gpiob.pb3.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
+    let miso = gpiob.pb4.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
+    let mosi = gpiob.pb5.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
 
-    // let spi = Spi::spi1(
-    //     device.SPI1,
-    //     (sck, miso, mosi),
-    //     mpu9250::MODE,
-    //     1.mhz(),
-    //     clocks,
-    //     &mut rcc.apb2,
-    // );
+    let spi = Spi::spi1(
+        device.SPI1,
+        (sck, miso, mosi),
+        mpu9250::MODE,
+        1.mhz(),
+        clocks,
+        &mut rcc.apb2,
+    );
 
-    // let mpu9250 = Mpu9250::imu(spi, nss, &mut delay).unwrap();
+    let mut delay = Delay::new(core.SYST, clocks);
+    let mpu9250 = Mpu9250::imu(spi, nss, &mut delay).unwrap();
 
-    let tim2 = device.TIM2;
-    let mut timer = Timer::tim2(tim2, FREQ.hz(), clocks, &mut rcc.apb1);
-    timer.listen(timer::Event::TimeOut);
+    let mut timer2 = Timer::tim2(device.TIM2, constants::DEBUG_TIMEOUT, clocks, &mut rcc.apb1);
+    timer2.listen(timer::Event::TimeOut);
     let beep = beeper::Beeper::new(gpioc);
-
-    let mut dw = debug_writer::DebugWriter::new(tx, timer, beep, BEEP_TIMEOUT);
-    dw.debug('i');
+    let dw = debug_writer::DebugWriter::new(tx, timer2, beep, constants::DEBUG_TIMEOUT);
 
     let esc = ESC::new();
     let motor = CorelessMotor::new();
@@ -133,6 +128,7 @@ fn main() -> ! {
         RX = Some(rx);
         ESC = Some(esc);
         MOTORS = Some(motor);
+        MPU = Some(mpu9250);
     }
 
     unsafe { cortex_m::interrupt::enable() };
@@ -141,52 +137,78 @@ fn main() -> ! {
     let hw = ((1 << prio_bits) - 1u8) << (8 - prio_bits);
     unsafe { nvic.set_priority(Interrupt::USART1_EXTI25, hw) };
     nvic.enable(Interrupt::USART1_EXTI25);
+    nvic.enable(Interrupt::EXTI0);
 
-    loop {}
+    let mut timer3 = Timer::tim3(device.TIM3, constants::TICK_TIMEOUT, clocks, &mut rcc.apb1);
+    timer3.listen(timer::Event::TimeOut);
+
+    let dw = unsafe { extract(&mut DW) };
+    dw.debug(constants::messages::INIT);
+    dw.blink();
+
+    loop {
+        timer3.start(constants::TICK_TIMEOUT);
+        while let Err(nb::Error::WouldBlock) = timer3.wait() {}
+        dw.debug(constants::messages::TICK);
+        // trigger the `EXTI0` interrupt
+        nvic.set_pending(Interrupt::EXTI0);
+    }
 }
 
 unsafe fn extract<T>(opt: &'static mut Option<T>) -> &'static mut T {
     match opt {
         Some(ref mut x) => &mut *x,
-        None => panic!(),
+        None => panic!("extract"),
     }
 }
 
-interrupt!(USART1_EXTI25, echo);
+interrupt!(EXTI0, exti0);
+fn exti0() {
+    let dw = unsafe { extract(&mut DW) };
+    let mpu = unsafe { extract(&mut MPU) };
+    let gyrox = match mpu.gx() {
+        Ok(x) => x,
+        Err(_) => 0,
+    };
+    let data = itoa::itoa_i16(gyrox);
+    dw.debug(data.as_ref());
+}
+
+interrupt!(USART1_EXTI25, usart1_exti25);
 // Send back the received byte
-fn echo() {
+fn usart1_exti25() {
     let rx = unsafe { extract(&mut RX) };
     let dw = unsafe { extract(&mut DW) };
     let bootloader = unsafe { extract(&mut BOOTLOADER) };
     let motor = unsafe { extract(&mut MOTORS) };
     match rx.read() {
         Ok(b) => {
-            if b == 'r' as u8 {
+            if b == constants::messages::RESET {
                 bootloader.system_reset();
             }
-            if b == 'R' as u8 {
+            if b == constants::messages::BOOTLOADER {
                 bootloader.to_bootloader();
             }
-            if b == '0' as u8 {
+            if b == constants::messages::MOTOR {
                 motor.set_rpm(1.0);
             }
             dw.debug(b);
         }
         Err(nb::Error::Other(e)) => match e {
             serial::Error::Framing => {
-                dw.error('f');
+                dw.error(constants::messages::FRAMING_ERROR);
             }
             serial::Error::Overrun => {
                 rx.clear_overrun_error();
             }
             serial::Error::Parity => {
-                dw.error('p');
+                dw.error(constants::messages::PARITY_ERROR);
             }
             serial::Error::Noise => {
-                dw.error('n');
+                dw.error(constants::messages::NOISE);
             }
             _ => {
-                dw.error('u');
+                dw.error(constants::messages::UNKNOWN_ERROR);
             }
         },
         Err(nb::Error::WouldBlock) => {}
@@ -194,23 +216,17 @@ fn echo() {
 }
 
 exception!(HardFault, hard_fault);
-
 fn hard_fault(ef: &ExceptionFrame) -> ! {
+    let dw = unsafe { extract(&mut DW) };
+    dw.error(constants::messages::HARD_FAULT);
     panic!("HardFault at {:#?}", ef);
 }
 
 exception!(*, default_handler);
-
 fn default_handler(irqn: i16) {
+    let dw = unsafe { extract(&mut DW) };
+    let is = itoa::itoa_i16(irqn);
+    dw.debug(constants::messages::DEFAULT_INTERRUPT);
+    dw.debug(is.as_ref());
     panic!("Unhandled exception (IRQn = {})", irqn);
 }
-
-// fn tick(_t: &mut Threshold, _r: SYS_TICK::Resources) {
-//     // let dw = &mut r.DW;
-//     // let gyrox = match r.MPU.gx() {
-//     //     Ok(x) => x,
-//     //     Err(_) => 0,
-//     // };
-//     // let data = itoa::itoa_i16(gyrox);
-//     // dw.debug(&data[..]);
-// }
