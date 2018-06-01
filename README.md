@@ -2,6 +2,8 @@
 
 Drone firmware written in [rust](https://github.com/rust-lang/rust).
 
+[![Build Status](https://travis-ci.org/copterust/f3-eva.svg?branch=master)](https://travis-ci.org/copterust/f3-eva)
+
 # Installation
 
 We use rust nightly with target thumbv7em-none-eabi.
