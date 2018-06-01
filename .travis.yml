@@ -1,25 +1,22 @@
 language: rust
+rust:
+  - nightly
 
 matrix:
   include:
-    - env: TARGET=thumbv7em-none-eabi
-      rust: nightly
-      addons:
+    - addons:
         apt:
           packages:
             - gcc-arm-none-eabi
 
-before_install: set -e
-
 install:
-  - rustup target add $TARGET
+  - rustup target add thumbv7em-none-eabi
 
 script:
   - cargo build --verbose
 
 cache: cargo
 before_cache:
-  # Travis can't cache files that are not readable by "others"
   - chmod -R a+r $HOME/.cargo
 
 branches:
