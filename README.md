@@ -7,6 +7,8 @@ Drone firmware written in [rust](https://github.com/rust-lang/rust).
 We use rust nightly with target thumbv7em-none-eabi.
 We use [bobbin-cli](https://github.com/bobbin-rs/bobbin-cli/) to flash device.
 
+Built with "1.28.0-nightly (1ffb32147 2018-05-31)".
+
 # Hardware
 
 Officially supported devices are:
