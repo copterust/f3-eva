@@ -2,9 +2,9 @@
 
 Drone firmware written in [rust](https://github.com/rust-lang/rust).
 
-Master: [![Build Status](https://travis-ci.org/copterust/f3-eva.svg?branch=master)](https://travis-ci.org/copterust/f3-eva)
+[Master](https://github.com/copterust/f3-eva/tree/master): [![Build Status](https://travis-ci.org/copterust/f3-eva.svg?branch=master)](https://travis-ci.org/copterust/f3-eva)
 
-Develop: [![Build Status](https://travis-ci.org/copterust/f3-eva.svg?branch=develop)](https://travis-ci.org/copterust/f3-eva)
+[Develop](https://github.com/copterust/f3-eva/tree/master): [![Build Status](https://travis-ci.org/copterust/f3-eva.svg?branch=develop)](https://travis-ci.org/copterust/f3-eva)
 
 # Installation
 
