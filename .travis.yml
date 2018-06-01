@@ -4,6 +4,10 @@ matrix:
   include:
     - env: TARGET=thumbv7em-none-eabi
       rust: nightly
+      addons:
+        apt:
+          packages:
+            - gcc-arm-none-eabi
 
 before_install: set -e
 
