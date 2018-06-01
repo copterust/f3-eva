@@ -12,7 +12,10 @@ matrix:
 before_install: set -e
 
 install:
-  - sh ci/install.sh
+  - rustup target add $TARGET
+
+script:
+  - cargo build --verbose
 
 cache: cargo
 before_cache:
