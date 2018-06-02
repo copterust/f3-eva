@@ -53,12 +53,20 @@ type MPU9250 = mpu9250::Mpu9250<
 type DW =
     debug_writer::DebugWriter<Tx<hal::stm32f30x::USART1>, hal::timer::Timer<hal::stm32f30x::TIM2>>;
 
+type PWM = (
+    hal::pwm::Pwm<stm32f30x::TIM3, hal::pwm::C1>,
+    hal::pwm::Pwm<stm32f30x::TIM3, hal::pwm::C2>,
+    hal::pwm::Pwm<stm32f30x::TIM3, hal::pwm::C3>,
+    hal::pwm::Pwm<stm32f30x::TIM3, hal::pwm::C4>,
+);
+
 static mut DW: Option<DW> = None;
 static mut RX: Option<Rx<hal::stm32f30x::USART1>> = None;
 static mut BOOTLOADER: Option<bootloader::stm32f30x::Bootloader> = None;
 static mut ESC: Option<ESC> = None;
 static mut MOTORS: Option<CorelessMotor> = None;
 static mut MPU: Option<MPU9250> = None;
+static mut PWM: Option<PWM> = None;
 
 entry!(main);
 
@@ -123,6 +131,18 @@ fn main() -> ! {
     let esc = ESC::new();
     let motor = CorelessMotor::new();
 
+    let c1 = gpioa.pa6.into_af2(&mut gpioa.moder, &mut gpioa.afrl);
+    let c2 = gpioa.pa7.into_af2(&mut gpioa.moder, &mut gpioa.afrl);
+    let c3 = gpiob.pb0.into_af2(&mut gpiob.moder, &mut gpiob.afrl);
+    let c4 = gpiob.pb1.into_af2(&mut gpiob.moder, &mut gpiob.afrl);
+
+    let pwm = device.TIM3.pwm(
+        (c1, c2, c3, c4),
+        1.khz(), // TODO: move to const
+        clocks,
+        &mut rcc.apb1,
+    );
+
     unsafe {
         DW = Some(dw);
         BOOTLOADER = Some(bootloader);
@@ -130,6 +150,7 @@ fn main() -> ! {
         ESC = Some(esc);
         MOTORS = Some(motor);
         MPU = Some(mpu9250);
+        PWM = Some(pwm);
     }
 
     unsafe { cortex_m::interrupt::enable() };
@@ -140,8 +161,8 @@ fn main() -> ! {
     nvic.enable(Interrupt::USART1_EXTI25);
     nvic.enable(Interrupt::EXTI0);
 
-    let mut timer3 = Timer::tim3(device.TIM3, constants::TICK_TIMEOUT, clocks, &mut rcc.apb1);
-    timer3.listen(timer::Event::TimeOut);
+    let mut timer4 = Timer::tim4(device.TIM4, constants::TICK_TIMEOUT, clocks, &mut rcc.apb1);
+    timer4.listen(timer::Event::TimeOut);
 
     let dw = unsafe { extract(&mut DW) };
     dw.debug(constants::messages::INIT);
@@ -149,8 +170,8 @@ fn main() -> ! {
 
     let mut c = -1;
     loop {
-        timer3.start(constants::TICK_TIMEOUT);
-        while let Err(nb::Error::WouldBlock) = timer3.wait() {}
+        timer4.start(constants::TICK_TIMEOUT);
+        while let Err(nb::Error::WouldBlock) = timer4.wait() {}
         c = (c + 1) % constants::TICK_PERIOD;
         if c == 0 {
             dw.debug(constants::messages::TICK);
@@ -201,12 +222,32 @@ fn print_accel(dw: &mut DW, mpu: &mut MPU9250) {
     };
 }
 
+fn do_pwm(dw: &mut DW, pwm: &mut PWM) {
+    dw.debug("c0:");
+    dw.debug(itoa::itoa_u16(pwm.0.get_max_duty()).as_ref());
+    dw.debug("; c1:");
+    dw.debug(itoa::itoa_u16(pwm.1.get_max_duty()).as_ref());
+    dw.debug("; c2:");
+    dw.debug(itoa::itoa_u16(pwm.2.get_max_duty()).as_ref());
+    dw.debug("; c3:");
+    dw.debug(itoa::itoa_u16(pwm.3.get_max_duty()).as_ref());
+    dw.debug("\r\n");
+    pwm.0.set_duty(20000);
+    pwm.1.set_duty(20000);
+    pwm.2.set_duty(20000);
+    pwm.3.set_duty(20000);
+    dw.debug("set\r\n");
+}
+
 interrupt!(EXTI0, exti0);
 fn exti0() {
     let mut dw = unsafe { extract(&mut DW) };
     let mut mpu = unsafe { extract(&mut MPU) };
+    let mut pwm = unsafe { extract(&mut PWM) };
     print_gyro(&mut dw, &mut mpu);
     print_accel(&mut dw, &mut mpu);
+    do_pwm(&mut dw, &mut pwm);
+    dw.debug("\r\n");
 }
 
 interrupt!(USART1_EXTI25, usart1_exti25);
