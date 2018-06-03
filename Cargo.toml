@@ -19,7 +19,7 @@ version = "0.2.1"
 
 [dependencies.stm32f30x-hal]
 git = "https://github.com/copterust/stm32f30x-hal.git"
-rev = "e3d9d636a188f35c437e3d93ad2d842357270de0"
+rev = "c788c79bb4f72fbfec56aeb8369301c1ddc2d37f"
 
 [dependencies.stm32f30x]
 version = "0.7.0"
