@@ -141,6 +141,7 @@ fn main() -> ! {
         1.khz(), // TODO: move to const
         clocks,
         &mut rcc.apb1,
+        hal::pwm::PwmMode::Pwm1,
     );
 
     unsafe {
