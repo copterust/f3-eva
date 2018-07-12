@@ -1,8 +1,12 @@
 //#![deny(unsafe_code)]
-#![deny(warnings)]
+//#![deny(warnings)]
 #![no_std]
 #![no_main]
 #![feature(proc_macro)]
+
+const DT: f32 = 1. / FREQ as f32;
+const FREQ: u32 = 512;
+const CLAMP: f32 = 1.;
 
 extern crate cortex_m;
 #[macro_use]
@@ -15,6 +19,7 @@ extern crate mpu9250;
 #[macro_use]
 extern crate stm32f30x;
 extern crate stm32f30x_hal as hal;
+extern crate m;
 
 mod beeper;
 mod bootloader;
@@ -23,10 +28,13 @@ mod debug_writer;
 mod esc;
 mod itoa;
 mod motor;
+mod kalman;
 
+use kalman::Kalman;
 use esc::pwm::Controller as ESC;
 use motor::brushed::Coreless as CorelessMotor;
 use motor::Motor;
+use m::Float;
 
 use bootloader::Bootloader;
 use debug_writer::DebugWrite;
@@ -39,6 +47,8 @@ use hal::serial;
 use hal::serial::{Rx, Serial, Tx};
 use hal::spi::Spi;
 use hal::timer::{self, Timer};
+
+use core::f32::consts::PI;
 
 // use cortex_m::asm;
 use mpu9250::Mpu9250;
@@ -67,6 +77,11 @@ static mut ESC: Option<ESC> = None;
 static mut MOTORS: Option<CorelessMotor> = None;
 static mut MPU: Option<MPU9250> = None;
 static mut PWM: Option<PWM> = None;
+static mut KALMAN: Option<Kalman> = None;
+
+// gyroscope sensitivity
+const K_G: f32 = 250. / (1 << 15) as f32;
+const K_A: f32 = 2. / (1 << 15) as f32;
 
 entry!(main);
 
@@ -123,6 +138,27 @@ fn main() -> ! {
     mpu9250.a_scale(mpu9250::FSScale::_01).unwrap();
     mpu9250.g_scale(mpu9250::FSScale::_01).unwrap();
 
+    // CALIBRATION & KALMAN FILTER INITIALIZATION
+    let (mut gx, mut ary, mut arz) = (0, 0, 0);
+    const NSAMPLES: i32 = 128;
+    for _ in 0..NSAMPLES {
+        let (ary_, arz_, _, gx_) = mpu9250.aryz_t_gx().ok().unwrap();
+        ary += ary_ as i32;
+        arz += arz_ as i32;
+        gx += gx_ as i32;
+        delay.delay_ms(1_u8);
+    }
+
+    // average
+    gx /= NSAMPLES;
+    ary /= NSAMPLES;
+    arz /= NSAMPLES;
+
+    let gyro_bias = gx as f32 * K_G;
+    let angle = (ary as f32 * K_A).atan2(arz as f32 * K_A) * 180. / PI;
+
+    let kalman = Kalman::new(angle, gyro_bias);
+
     let mut timer2 = Timer::tim2(device.TIM2, constants::DEBUG_TIMEOUT, clocks, &mut rcc.apb1);
     timer2.listen(timer::Event::TimeOut);
     let beep = beeper::Beeper::new(gpioc);
@@ -152,6 +188,7 @@ fn main() -> ! {
         MOTORS = Some(motor);
         MPU = Some(mpu9250);
         PWM = Some(pwm);
+        KALMAN = Some(kalman);
     }
 
     unsafe { cortex_m::interrupt::enable() };
@@ -245,9 +282,16 @@ fn exti0() {
     let mut dw = unsafe { extract(&mut DW) };
     let mut mpu = unsafe { extract(&mut MPU) };
     let mut pwm = unsafe { extract(&mut PWM) };
-    print_gyro(&mut dw, &mut mpu);
-    print_accel(&mut dw, &mut mpu);
-    do_pwm(&mut dw, &mut pwm);
+    let mut kalman = unsafe { extract(&mut KALMAN) };
+
+    let (ary, arz, _, gx) = mpu.aryz_t_gx().ok().unwrap();
+    let omega = (gx as f32) * K_G;
+    let angle = (ary as f32 * K_A).atan2(arz as f32 * K_A) * 180. / PI;
+    let estimate = kalman.update(angle, omega);
+    dw.debug("omega:");
+//    print_gyro(&mut dw, &mut mpu);
+//    print_accel(&mut dw, &mut mpu);
+//    do_pwm(&mut dw, &mut pwm);
     dw.debug("\r\n");
 }
 

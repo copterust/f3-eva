@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Roma Sokolov", "Alexander Zhuravlev"]
 
 [dependencies]
+m = "0.1.1"
 
 [profile.dev]
 panic = "abort"
