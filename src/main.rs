@@ -2,11 +2,10 @@
 //#![deny(warnings)]
 #![no_std]
 #![no_main]
-#![feature(proc_macro)]
+#![feature(use_extern_macros)]
 
 const DT: f32 = 1. / FREQ as f32;
 const FREQ: u32 = 512;
-const CLAMP: f32 = 1.;
 
 extern crate cortex_m;
 #[macro_use]
@@ -282,17 +281,17 @@ interrupt!(EXTI0, exti0);
 fn exti0() {
     let mut dw = unsafe { extract(&mut DW) };
     let mut mpu = unsafe { extract(&mut MPU) };
-    // let mut pwm = unsafe { extract(&mut PWM) };
-    let mut kalman = unsafe { extract(&mut KALMAN) };
+    let mut pwm = unsafe { extract(&mut PWM) };
+    let kalman = unsafe { extract(&mut KALMAN) };
 
     let (ary, arz, _, gx) = mpu.aryz_t_gx().ok().unwrap();
     let omega = (gx as f32) * K_G;
     let angle = (ary as f32 * K_A).atan2(arz as f32 * K_A) * 180. / PI;
-    let estimate = kalman.update(angle, omega);
+    let _estimate = kalman.update(angle, omega);
     // dw.debug("omega:");
     print_gyro(&mut dw, &mut mpu);
     print_accel(&mut dw, &mut mpu);
-    // do_pwm(&mut dw, &mut pwm);
+    do_pwm(&mut dw, &mut pwm);
     dw.debug("\r\n");
 }
 
