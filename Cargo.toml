@@ -19,7 +19,7 @@ features = ["unproven"]
 version = "0.2.1"
 
 [dependencies.stm32f30x-hal]
-git = "https://github.com/copterust/stm32f30x-hal.git"
+git = "https://github.com/copterust/alt-stm32f30x-hal.git"
 rev = "c788c79bb4f72fbfec56aeb8369301c1ddc2d37f"
 
 [dependencies.stm32f30x]
