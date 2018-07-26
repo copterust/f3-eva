@@ -4,9 +4,6 @@
 #![no_main]
 #![feature(use_extern_macros)]
 
-const DT: f32 = 1. / FREQ as f32;
-const FREQ: u32 = 512;
-
 extern crate cortex_m;
 #[macro_use]
 extern crate cortex_m_rt as rt;
@@ -17,7 +14,7 @@ extern crate embedded_hal as ehal;
 extern crate mpu9250;
 #[macro_use]
 extern crate stm32f30x;
-extern crate m;
+extern crate libm;
 extern crate stm32f30x_hal as hal;
 
 mod beeper;
@@ -29,15 +26,14 @@ mod itoa;
 mod kalman;
 mod motor;
 
+use bootloader::Bootloader;
+use debug_writer::DebugWrite;
 use esc::pwm::Controller as ESC;
 use kalman::Kalman;
-use m::Float;
 use motor::brushed::Coreless as CorelessMotor;
 use motor::Motor;
 
-use bootloader::Bootloader;
-use debug_writer::DebugWrite;
-
+use core::f32::consts::PI;
 use hal::delay::Delay;
 use hal::gpio::gpiob;
 use hal::gpio::{AF5, Output, PushPull};
@@ -46,9 +42,7 @@ use hal::serial;
 use hal::serial::{Rx, Serial, Tx};
 use hal::spi::Spi;
 use hal::timer::{self, Timer};
-
-use core::f32::consts::PI;
-
+use libm::F32Ext;
 use mpu9250::Mpu9250;
 use rt::ExceptionFrame;
 use stm32f30x::Interrupt;

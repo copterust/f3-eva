@@ -1,4 +1,5 @@
-use DT;
+const FREQ: u32 = 512;
+const DT: f32 = 1. / FREQ as f32;
 
 // Accelerometer angle (process) variance
 const Q_ANGLE: f32 = 1e-3;

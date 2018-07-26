@@ -3,9 +3,6 @@ name = "f3_eva"
 version = "0.1.0"
 authors = ["Roma Sokolov", "Alexander Zhuravlev"]
 
-[dependencies]
-m = "0.1.1"
-
 [profile.dev]
 panic = "abort"
 debug = true
@@ -37,6 +34,9 @@ version = "0.5.2"
 
 [dependencies.cortex-m-rt]
 version = "0.5.1"
+
+[dependencies]
+libm = "0.1.2"
 
 [dependencies.mpu9250]
 git = "https://github.com/copterust/mpu9250.git"
