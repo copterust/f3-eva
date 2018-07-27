@@ -2,17 +2,21 @@
 
 use hal::prelude::*;
 
-use hal::gpio::gpioc::{PC14, MODER, OTYPER};
-use hal::gpio::{Floating, Input, Output, PushPull};
+use hal::gpio::gpioc::PC14;
+use hal::gpio::{LowSpeed, Output, PinMode, PullNone, PullType, PushPull};
 
 pub struct Beeper {
-    pin: PC14<Output<PushPull>>,
+    pin: PC14<PullNone, Output<PushPull, LowSpeed>>,
 }
 
 impl Beeper {
-    pub fn new(pin: PC14<Input<Floating>>, moder: &mut MODER, otyper: &mut OTYPER) -> Self {
-        let p = pin.into_push_pull_output(moder, otyper);
-        Beeper { pin: p }
+    pub fn new<PT, PM>(pin: PC14<PT, PM>) -> Self
+    where
+        PT: PullType,
+        PM: PinMode,
+    {
+        let pin = pin.output().pull_type(PullNone);
+        Beeper { pin }
     }
 
     pub fn off(&mut self) {

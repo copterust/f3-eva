@@ -1,11 +1,12 @@
+use cortex_m;
+
 pub trait Bootloader: Sized {
     fn to_bootloader(&mut self);
     fn system_reset(&mut self);
 }
 
 pub mod stm32f30x {
-    extern crate cortex_m;
-    extern crate stm32f30x_hal as hal;
+    use super::cortex_m;
 
     use core;
     use cortex_m::interrupt;

@@ -1,12 +1,11 @@
-extern crate stm32f30x_hal as hal;
+use super::hal::time::{Bps, Hertz, KiloHertz};
 
-use hal::time::Hertz;
-
-pub const BAUD_RATE: hal::time::Bps = hal::time::Bps(9600);
+pub const BAUD_RATE: Bps = Bps(9600);
 
 pub const DEBUG_TIMEOUT: Hertz = Hertz(1);
 pub const TICK_TIMEOUT: Hertz = Hertz(1);
 pub const TICK_PERIOD: i8 = 5;
+pub const PWM_SPEED: KiloHertz = KiloHertz(650);
 
 pub mod messages {
     pub const INIT: &'static str = "init\r\n";
