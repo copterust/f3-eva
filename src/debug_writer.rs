@@ -33,12 +33,7 @@ impl<Wr, CountDown> DebugWriter<Wr, CountDown>
         self.timer.start(self.err_delay);
         while let Err(nb::Error::WouldBlock) = self.timer.wait() {}
     }
-}
 
-impl<Wr, CountDown> Debugger for DebugWriter<Wr, CountDown>
-    where CountDown: ehal::timer::CountDown<Time = Hertz> + Sized,
-          Wr: ehal::serial::Write<u8> + Sized
-{
     fn write_one<I: Into<u8>>(&mut self, data: I) {
         let b = data.into();
         match nb::block!(self.tx.write(b)) {
@@ -60,6 +55,18 @@ impl<Wr, CountDown> Debugger for DebugWriter<Wr, CountDown>
     }
 }
 
+impl<Wr, CountDown> Debugger for DebugWriter<Wr, CountDown>
+    where CountDown: ehal::timer::CountDown<Time = Hertz> + Sized,
+          Wr: ehal::serial::Write<u8> + Sized
+{
+    fn debug<'a>(&mut self, data: impl Into<Debuggable<'a>>) {
+        match data.into() {
+            Debuggable::One(byte) => self.write_one(byte),
+            Debuggable::Many(bytes) => self.write_many(bytes),
+        }
+    }
+}
+
 impl<Wr, CountDown> ErrorReporter for DebugWriter<Wr, CountDown>
     where CountDown: ehal::timer::CountDown<Time = Hertz> + Sized,
           Wr: ehal::serial::Write<u8> + Sized
@@ -72,45 +79,42 @@ impl<Wr, CountDown> ErrorReporter for DebugWriter<Wr, CountDown>
 }
 
 pub trait Debugger: Sized {
-    fn write_one<I: Into<u8>>(&mut self, data: I);
-    fn write_many(&mut self, data: &[u8]);
-    fn debug<T: Debuggable>(&mut self, data: T) {
-        data.do_debug(self)
-    }
+    fn debug<'a>(&mut self, data: impl Into<Debuggable<'a>>);
 }
 
 pub trait ErrorReporter: Debugger {
     fn blink(&mut self);
-    fn error<T: Debuggable>(&mut self, data: T) {
+    fn error<'a>(&mut self, data: impl Into<Debuggable<'a>>) {
         self.debug(data);
         self.blink();
     }
 }
 
-pub trait Debuggable: Sized {
-    fn do_debug(&self, &mut impl Debugger);
+pub enum Debuggable<'a> {
+    One(u8),
+    Many(&'a [u8]),
 }
 
-impl Debuggable for u8 {
-    fn do_debug(&self, dw: &mut impl Debugger) {
-        dw.write_one(self.clone())
+impl<'a> From<u8> for Debuggable<'a> {
+    fn from(arg: u8) -> Self {
+        Debuggable::One(arg)
     }
 }
 
-impl Debuggable for char {
-    fn do_debug(&self, dw: &mut impl Debugger) {
-        dw.write_one(self.clone() as u8)
+impl<'a> From<char> for Debuggable<'a> {
+    fn from(arg: char) -> Self {
+        Debuggable::One(arg as u8)
     }
 }
 
-impl Debuggable for &[u8] {
-    fn do_debug(&self, dw: &mut impl Debugger) {
-        dw.write_many(self)
+impl<'a> From<&'a str> for Debuggable<'a> {
+    fn from(arg: &'a str) -> Self {
+        Debuggable::Many(arg.as_bytes())
     }
 }
 
-impl Debuggable for &str {
-    fn do_debug(&self, dw: &mut impl Debugger) {
-        dw.write_many(self.as_bytes())
+impl<'a> From<&'a [u8]> for Debuggable<'a> {
+    fn from(arg: &'a [u8]) -> Self {
+        Debuggable::Many(arg)
     }
 }
