@@ -28,6 +28,7 @@ mod kalman;
 mod motor;
 
 use bootloader::Bootloader;
+use debug_writer::{Debugger, ErrorReporter};
 use esc::pwm::Controller as ESC;
 use kalman::Kalman;
 use motor::brushed::Coreless as CorelessMotor;
@@ -304,23 +305,25 @@ fn usart1_exti25() {
             }
             dw.debug(b);
         }
-        Err(nb::Error::Other(e)) => match e {
-            serial::Error::Framing => {
-                dw.error(constants::messages::FRAMING_ERROR);
+        Err(nb::Error::Other(e)) => {
+            match e {
+                serial::Error::Framing => {
+                    dw.error(constants::messages::FRAMING_ERROR);
+                }
+                serial::Error::Overrun => {
+                    rx.clear_overrun_error();
+                }
+                serial::Error::Parity => {
+                    dw.error(constants::messages::PARITY_ERROR);
+                }
+                serial::Error::Noise => {
+                    dw.error(constants::messages::NOISE);
+                }
+                _ => {
+                    dw.error(constants::messages::UNKNOWN_ERROR);
+                }
             }
-            serial::Error::Overrun => {
-                rx.clear_overrun_error();
-            }
-            serial::Error::Parity => {
-                dw.error(constants::messages::PARITY_ERROR);
-            }
-            serial::Error::Noise => {
-                dw.error(constants::messages::NOISE);
-            }
-            _ => {
-                dw.error(constants::messages::UNKNOWN_ERROR);
-            }
-        },
+        }
         Err(nb::Error::WouldBlock) => {}
     };
 }
