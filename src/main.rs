@@ -3,6 +3,7 @@
 #![no_std]
 #![no_main]
 #![feature(use_extern_macros)]
+#![feature(in_band_lifetimes)]
 
 extern crate cortex_m;
 #[macro_use]
@@ -27,7 +28,6 @@ mod kalman;
 mod motor;
 
 use bootloader::Bootloader;
-use debug_writer::DebugWrite;
 use esc::pwm::Controller as ESC;
 use kalman::Kalman;
 use motor::brushed::Coreless as CorelessMotor;
@@ -58,6 +58,7 @@ type MPU9250 =
                                      AltFn<AF5, PushPull, LowSpeed>>)>,
                      gpiob::PB9<PullNone, Output<PushPull, LowSpeed>>,
                      mpu9250::Imu>;
+
 type DW = debug_writer::DebugWriter<Tx<hal::stm32f30x::USART1>,
                                     timer::tim2::Timer<timer::ChannelFree,
                                                        timer::ChannelFree,
@@ -158,10 +159,10 @@ fn main() -> ! {
                                          constants::DEBUG_TIMEOUT,
                                          clocks,
                                          &mut rcc.apb1);
-    let beep = beeper::Beeper::new(gpioc.pc14);
+
     let dw = debug_writer::DebugWriter::new(tx,
                                             timer2,
-                                            beep,
+                                            beeper::Beeper::new(gpioc.pc14),
                                             constants::DEBUG_TIMEOUT);
 
     let esc = ESC::new();
