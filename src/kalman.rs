@@ -24,11 +24,9 @@ pub struct Kalman {
 
 impl Kalman {
     pub fn new(angle: f32, bias: f32) -> Self {
-        Kalman {
-            p: [[0.; 2]; 2],
-            angle,
-            bias,
-        }
+        Kalman { p: [[0.; 2]; 2],
+                 angle,
+                 bias, }
     }
 
     // - `angle` estimated using the accelerometer (rad)

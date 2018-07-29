@@ -31,8 +31,7 @@ use bootloader::Bootloader;
 use debug_writer::{Debugger, ErrorReporter};
 use esc::pwm::Controller as ESC;
 use kalman::Kalman;
-use motor::brushed::Coreless as CorelessMotor;
-use motor::Motor;
+use motor::{brushed::Coreless as CorelessMotor, Motor};
 
 use core::f32::consts::PI;
 use hal::delay::Delay;
@@ -97,10 +96,8 @@ fn main() -> ! {
     let gpioc = device.GPIOC.split(&mut rcc.ahb);
 
     let mut flash = device.FLASH.constrain();
-    let clocks = rcc.cfgr
-                    .sysclk(64.mhz())
-                    .pclk1(32.mhz())
-                    .freeze(&mut flash.acr);
+    let clocks =
+        rcc.cfgr.sysclk(64.mhz()).pclk1(32.mhz()).freeze(&mut flash.acr);
 
     let txpin = gpioa.pa9.alternating(AF7);
     let rxpin = gpioa.pa10.alternating(AF7);
@@ -237,10 +234,10 @@ fn print_gyro(dw: &mut DW, mpu: &mut MPU9250) {
             dw.debug("; gz:");
             dw.debug(itoa::itoa_i16(g.z).as_ref());
             dw.debug("\r\n");
-        }
+        },
         Err(_) => {
             dw.debug(constants::messages::ERROR);
-        }
+        },
     };
 }
 
@@ -254,10 +251,10 @@ fn print_accel(dw: &mut DW, mpu: &mut MPU9250) {
             dw.debug("; az:");
             dw.debug(itoa::itoa_i16(a.z).as_ref());
             dw.debug("\r\n");
-        }
+        },
         Err(_) => {
             dw.debug(constants::messages::ERROR);
-        }
+        },
     };
 }
 
@@ -312,25 +309,25 @@ fn usart1_exti25() {
                 motor.set_rpm(1.0);
             }
             dw.debug(b);
-        }
+        },
         Err(nb::Error::Other(e)) => match e {
             serial::Error::Framing => {
                 dw.error(constants::messages::FRAMING_ERROR);
-            }
+            },
             serial::Error::Overrun => {
                 rx.clear_overrun_error();
-            }
+            },
             serial::Error::Parity => {
                 dw.error(constants::messages::PARITY_ERROR);
-            }
+            },
             serial::Error::Noise => {
                 dw.error(constants::messages::NOISE);
-            }
+            },
             _ => {
                 dw.error(constants::messages::UNKNOWN_ERROR);
-            }
+            },
         },
-        Err(nb::Error::WouldBlock) => {}
+        Err(nb::Error::WouldBlock) => {},
     };
 }
 

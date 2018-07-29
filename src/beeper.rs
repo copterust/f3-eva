@@ -2,8 +2,9 @@
 
 use hal::prelude::*;
 
-use hal::gpio::gpioc::PC14;
-use hal::gpio::{LowSpeed, Output, PinMode, PullNone, PullType, PushPull};
+use hal::gpio::{
+    gpioc::PC14, LowSpeed, Output, PinMode, PullNone, PullType, PushPull
+};
 
 pub struct Beeper {
     pin: PC14<PullNone, Output<PushPull, LowSpeed>>,
@@ -11,12 +12,11 @@ pub struct Beeper {
 
 impl Beeper {
     pub fn new<PT, PM>(pin: PC14<PT, PM>) -> Self
-    where
-        PT: PullType,
-        PM: PinMode,
+        where PT: PullType,
+              PM: PinMode
     {
         let pin = pin.output().pull_type(PullNone);
-        Beeper { pin }
+        Beeper { pin, }
     }
 
     pub fn off(&mut self) {

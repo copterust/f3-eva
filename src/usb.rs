@@ -78,8 +78,8 @@
 //     sys_tick.enable_counter();
 // }
 
-// fn enable_nvic(irq_channel: usize, preemption_priority: u8, sub_priority: u8) {
-//     let cp = cortex_m::Peripherals::take().unwrap();
+// fn enable_nvic(irq_channel: usize, preemption_priority: u8, sub_priority:
+// u8) {     let cp = cortex_m::Peripherals::take().unwrap();
 //     let ar_value = cp.SCB.aircr.read();
 //     let mut tmp_priority = (0x700 - (ar_value & 0x700)) >> 0x08;
 //     let tmp_pre = 0x4 - tmp_priority;

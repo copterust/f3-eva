@@ -9,8 +9,7 @@ pub mod stm32f30x {
     use super::cortex_m;
 
     use core;
-    use cortex_m::interrupt;
-    use cortex_m::register::msp;
+    use cortex_m::{interrupt, register::msp};
 
     use super::Bootloader as BootloaderTrait;
 

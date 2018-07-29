@@ -37,10 +37,10 @@ impl<Wr, CountDown> DebugWriter<Wr, CountDown>
     fn write_one<I: Into<u8>>(&mut self, data: I) {
         let b = data.into();
         match nb::block!(self.tx.write(b)) {
-            Ok(_) => {}
+            Ok(_) => {},
             Err(_) => {
                 self.blink();
-            }
+            },
         }
     }
 
@@ -49,8 +49,8 @@ impl<Wr, CountDown> DebugWriter<Wr, CountDown>
             self.write_one(b.clone());
         }
         match self.tx.flush() {
-            Ok(_) => {}
-            Err(_) => {}
+            Ok(_) => {},
+            Err(_) => {},
         };
     }
 }
