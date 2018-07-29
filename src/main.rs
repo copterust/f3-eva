@@ -38,7 +38,7 @@ use core::f32::consts::PI;
 use hal::delay::Delay;
 use hal::gpio::{gpiob, gpioc};
 use hal::gpio::{AF2, AF5, AF7, AltFn};
-use hal::gpio::{LowSpeed, MediumSpeed, Output, PullNone, PushPull};
+use hal::gpio::{LowSpeed, MediumSpeed, Output, PullNone, PullUp, PushPull};
 use hal::prelude::*;
 use hal::pwm::PwmBinding;
 use hal::serial::{self, Rx, Serial, Tx};
@@ -66,7 +66,7 @@ type DW = debug_writer::DebugWriter<Tx<hal::stm32f30x::USART1>,
                                                        timer::ChannelFree,
                                                        timer::ChannelFree>>;
 
-type PWM1 = PwmBinding<gpioc::PC6<PullNone, AltFn<AF2, PushPull, MediumSpeed>>,
+type PWM1 = PwmBinding<gpioc::PC6<PullUp, AltFn<AF2, PushPull, MediumSpeed>>,
                        timer::tim3::Channel<timer::CH1, timer::Pwm1>,
                        AF2>;
 
@@ -177,7 +177,7 @@ fn main() -> ! {
     tim3.enable();
     let pwm = PwmBinding::<gpioc::PC6<_, _>,
                          timer::tim3::Channel<timer::CH1, _>,
-                         AF2>::new(gpioc.pc6, ch1);
+                         AF2>::new(gpioc.pc6.pull_type(PullUp), ch1);
     unsafe {
         DW = Some(dw);
         BOOTLOADER = Some(bootloader);
@@ -262,10 +262,21 @@ fn print_accel(dw: &mut DW, mpu: &mut MPU9250) {
 }
 
 fn do_pwm(dw: &mut DW, pwm: &mut PWM1) {
-    dw.debug("c0:");
-    dw.debug(itoa::itoa_u32(pwm.get_max_duty()).as_ref());
-    pwm.set_duty(20000);
-    dw.debug("set\r\n");
+    dw.debug("c0: ");
+    let max_duty = pwm.get_max_duty();
+    dw.debug(itoa::itoa_u32(max_duty).as_ref());
+    pwm.set_duty(max_duty / 2);
+    dw.debug("\r\nset duty\r\n");
+}
+
+fn print_kalman_estimate(dw: &mut DW, mpu: &mut MPU9250, kalman: &mut Kalman) {
+    dw.debug("kalman estimate: ");
+    let (ary, arz, _, gx) = mpu.aryz_t_gx().ok().unwrap();
+    let omega = (gx as f32) * K_G;
+    let angle = (ary as f32 * K_A).atan2(arz as f32 * K_A) * 180. / PI;
+    let estimate = kalman.update(angle, omega) as u32;
+    dw.debug(itoa::itoa_u32(estimate).as_ref());
+    dw.debug("\r\n");
 }
 
 interrupt!(EXTI0, exti0);
@@ -273,14 +284,11 @@ fn exti0() {
     let mut dw = unsafe { extract(&mut DW) };
     let mut mpu = unsafe { extract(&mut MPU) };
     let mut pwm1 = unsafe { extract(&mut PWM1) };
-    let kalman = unsafe { extract(&mut KALMAN) };
+    let mut kalman = unsafe { extract(&mut KALMAN) };
 
-    let (ary, arz, _, gx) = mpu.aryz_t_gx().ok().unwrap();
-    let omega = (gx as f32) * K_G;
-    let angle = (ary as f32 * K_A).atan2(arz as f32 * K_A) * 180. / PI;
-    let _estimate = kalman.update(angle, omega);
     print_gyro(&mut dw, &mut mpu);
     print_accel(&mut dw, &mut mpu);
+    print_kalman_estimate(&mut dw, &mut mpu, &mut kalman);
     do_pwm(&mut dw, &mut pwm1);
     dw.debug("\r\n");
 }
@@ -305,25 +313,23 @@ fn usart1_exti25() {
             }
             dw.debug(b);
         }
-        Err(nb::Error::Other(e)) => {
-            match e {
-                serial::Error::Framing => {
-                    dw.error(constants::messages::FRAMING_ERROR);
-                }
-                serial::Error::Overrun => {
-                    rx.clear_overrun_error();
-                }
-                serial::Error::Parity => {
-                    dw.error(constants::messages::PARITY_ERROR);
-                }
-                serial::Error::Noise => {
-                    dw.error(constants::messages::NOISE);
-                }
-                _ => {
-                    dw.error(constants::messages::UNKNOWN_ERROR);
-                }
+        Err(nb::Error::Other(e)) => match e {
+            serial::Error::Framing => {
+                dw.error(constants::messages::FRAMING_ERROR);
             }
-        }
+            serial::Error::Overrun => {
+                rx.clear_overrun_error();
+            }
+            serial::Error::Parity => {
+                dw.error(constants::messages::PARITY_ERROR);
+            }
+            serial::Error::Noise => {
+                dw.error(constants::messages::NOISE);
+            }
+            _ => {
+                dw.error(constants::messages::UNKNOWN_ERROR);
+            }
+        },
         Err(nb::Error::WouldBlock) => {}
     };
 }
