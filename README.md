@@ -30,3 +30,15 @@ Officially supported devices are:
 ## Body
 
 *TBC*
+
+## DevKit:
+
+*Blackmagic:*
+
+Bmagic PB8 -- TCK / SMLCK;
+
+Bmagic PB9 -- TIMS / SWDIO.
+
+MPU: see code.
+
+Serial2COM: converter tx to board rx; converter rx to board tx (see code).
