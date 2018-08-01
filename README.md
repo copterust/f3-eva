@@ -29,7 +29,12 @@ Officially supported devices are:
 
 ## Body
 
-*TBC*
+### Hexocopter
+
+Weight w/o airscrews and battery -- 50.2g.
+
+Weight with battery and props -- 68.2g.
+
 
 ## DevKit:
 
