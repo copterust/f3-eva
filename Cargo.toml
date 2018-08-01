@@ -16,8 +16,7 @@ features = ["unproven"]
 version = "0.2.1"
 
 [dependencies.alt-stm32f30x-hal]
-# version = "0.4.0"
-path = "../alt-stm32f30x-hal"
+version = "0.4.1"
 
 [dependencies.stm32f30x]
 version = "0.7.0"
