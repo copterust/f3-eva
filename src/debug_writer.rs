@@ -2,37 +2,25 @@ use ehal;
 use nb;
 
 use beeper;
-use hal::time::Hertz;
 
-pub struct DebugWriter<Wr, CountDown>
-    where CountDown: ehal::timer::CountDown<Time = Hertz> + Sized,
-          Wr: ehal::serial::Write<u8> + Sized
+pub struct DebugWriter<Wr>
+    where Wr: ehal::serial::Write<u8> + Sized
 {
     tx: Wr,
-    timer: CountDown,
     beeper: beeper::Beeper,
-    err_delay: Hertz,
 }
 
-impl<Wr, CountDown> DebugWriter<Wr, CountDown>
-    where CountDown: ehal::timer::CountDown<Time = Hertz> + Sized,
-          Wr: ehal::serial::Write<u8> + Sized
+impl<Wr> DebugWriter<Wr> where Wr: ehal::serial::Write<u8> + Sized
 {
-    pub fn new(tx: Wr,
-               timer: CountDown,
-               beeper: beeper::Beeper,
-               err_delay: Hertz)
-               -> Self {
+    pub fn new(tx: Wr, beeper: beeper::Beeper) -> Self {
         Self { tx,
-               timer,
-               beeper,
-               err_delay, }
+               beeper, }
     }
 
-    fn delay(&mut self) {
-        self.timer.start(self.err_delay);
-        while let Err(nb::Error::WouldBlock) = self.timer.wait() {}
-    }
+    // fn delay(&mut self) {
+    //     self.timer.start(self.err_delay);
+    //     while let Err(nb::Error::WouldBlock) = self.timer.wait() {}
+    // }
 
     fn write_one<I: Into<u8>>(&mut self, data: I) {
         let b = data.into();
@@ -55,9 +43,7 @@ impl<Wr, CountDown> DebugWriter<Wr, CountDown>
     }
 }
 
-impl<Wr, CountDown> Debugger for DebugWriter<Wr, CountDown>
-    where CountDown: ehal::timer::CountDown<Time = Hertz> + Sized,
-          Wr: ehal::serial::Write<u8> + Sized
+impl<Wr> Debugger for DebugWriter<Wr> where Wr: ehal::serial::Write<u8> + Sized
 {
     fn debug<'a>(&mut self, data: impl Into<Debuggable<'a>>) {
         match data.into() {
@@ -67,13 +53,12 @@ impl<Wr, CountDown> Debugger for DebugWriter<Wr, CountDown>
     }
 }
 
-impl<Wr, CountDown> ErrorReporter for DebugWriter<Wr, CountDown>
-    where CountDown: ehal::timer::CountDown<Time = Hertz> + Sized,
-          Wr: ehal::serial::Write<u8> + Sized
+impl<Wr> ErrorReporter for DebugWriter<Wr>
+    where Wr: ehal::serial::Write<u8> + Sized
 {
     fn blink(&mut self) {
         self.beeper.on();
-        self.delay();
+        // self.delay();
         self.beeper.off();
     }
 }

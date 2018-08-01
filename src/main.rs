@@ -34,6 +34,7 @@ use kalman::Kalman;
 use motor::{brushed::Coreless as CorelessMotor, Motor};
 
 use core::f32::consts::PI;
+use cortex_m::asm;
 use hal::delay::Delay;
 use hal::gpio::{gpiob, gpioc};
 use hal::gpio::{AF2, AF5, AF7, AltFn};
@@ -42,6 +43,7 @@ use hal::prelude::*;
 use hal::pwm::PwmBinding;
 use hal::serial::{self, Rx, Serial, Tx};
 use hal::spi::Spi;
+use hal::time::{Hertz, U32Ext};
 use hal::timer;
 use libm::F32Ext;
 use mpu9250::Mpu9250;
@@ -59,11 +61,7 @@ type MPU9250 =
                      gpiob::PB9<PullNone, Output<PushPull, LowSpeed>>,
                      mpu9250::Imu>;
 
-type DW = debug_writer::DebugWriter<Tx<hal::stm32f30x::USART1>,
-                                    timer::tim2::Timer<timer::ChannelFree,
-                                                       timer::ChannelFree,
-                                                       timer::ChannelFree,
-                                                       timer::ChannelFree>>;
+type DW = debug_writer::DebugWriter<Tx<hal::stm32f30x::USART1>>;
 
 type PWM1 = PwmBinding<gpioc::PC6<PullUp, AltFn<AF2, PushPull, MediumSpeed>>,
                        timer::tim3::Channel<timer::CH1, timer::Pwm1>,
@@ -153,28 +151,43 @@ fn main() -> ! {
     let kalman = Kalman::new(angle, gyro_bias);
     // XXX^ move above bullshit somewhere
 
-    let timer2 = timer::tim2::Timer::new(device.TIM2,
-                                         constants::DEBUG_TIMEOUT,
-                                         clocks,
-                                         &mut rcc.apb1);
+    let dw =
+        debug_writer::DebugWriter::new(tx, beeper::Beeper::new(gpioc.pc14));
 
-    let dw = debug_writer::DebugWriter::new(tx,
-                                            timer2,
-                                            beeper::Beeper::new(gpioc.pc14),
-                                            constants::DEBUG_TIMEOUT);
+    // MOTORS:
+    // pa0 -- pa3
+    let (ch1, ch2, ch3, ch4, mut timer2) =
+        timer::tim2::Timer::new(device.TIM2,
+                                constants::TIM_TIMEOUT,
+                                clocks,
+                                &mut rcc.apb1).take_all();
+    let mut motor_pa0 =
+        PwmBinding::bind_pa0_tim2_ch1(gpioa.pa0.pull_type(PullUp), ch1);
+    let mut motor_pa1 =
+        PwmBinding::bind_pa1_tim2_ch2(gpioa.pa1.pull_type(PullUp), ch2);
+    let mut motor_pa2 =
+        PwmBinding::bind_pa2_tim2_ch3(gpioa.pa2.pull_type(PullUp), ch3);
+    let mut motor_pa3 =
+        PwmBinding::bind_pa3_tim2_ch4(gpioa.pa3.pull_type(PullUp), ch4);
+    motor_pa0.enable();
+    motor_pa1.enable();
+    motor_pa2.enable();
+    motor_pa3.enable();
+    timer2.enable();
 
     let esc = ESC::new();
     let motor = CorelessMotor::new();
 
-    let tim3 = timer::tim3::Timer::new(device.TIM3,
-                                       constants::PWM_SPEED,
-                                       clocks,
-                                       &mut rcc.apb1);
-    let (ch1, mut tim3) = tim3.take_ch1();
-    tim3.enable();
-    let pwm = PwmBinding::<gpioc::PC6<_, _>,
-                         timer::tim3::Channel<timer::CH1, _>,
-                         AF2>::new(gpioc.pc6.pull_type(PullUp), ch1);
+    // let tim3 = timer::tim3::Timer::new(device.TIM3,
+    //                                    constants::PWM_SPEED,
+    //                                    clocks,
+    //                                    &mut rcc.apb1);
+    // let (ch1, mut tim3) = tim3.take_ch1();
+    // tim3.enable();
+    // let pwm = PwmBinding::<gpioc::PC6<_, _>,
+    //                      timer::tim3::Channel<timer::CH1, _>,
+    //                      AF2>::new(gpioc.pc6.pull_type(PullUp), ch1);
+
     unsafe {
         DW = Some(dw);
         BOOTLOADER = Some(bootloader);
@@ -182,39 +195,55 @@ fn main() -> ! {
         ESC = Some(esc);
         MOTORS = Some(motor);
         MPU = Some(mpu9250);
-        PWM1 = Some(pwm);
+        PWM1 = None; // Some(pwm);
         KALMAN = Some(kalman);
     }
 
-    unsafe { cortex_m::interrupt::enable() };
-    let mut nvic = core.NVIC;
-    let prio_bits = stm32f30x::NVIC_PRIO_BITS;
-    let hw = ((1 << prio_bits) - 1u8) << (8 - prio_bits);
-    unsafe { nvic.set_priority(Interrupt::USART1_EXTI25, hw) };
-    nvic.enable(Interrupt::USART1_EXTI25);
-    nvic.enable(Interrupt::EXTI0);
+    // unsafe { cortex_m::interrupt::enable() };
+    // let mut nvic = core.NVIC;
+    // let prio_bits = stm32f30x::NVIC_PRIO_BITS;
+    // let hw = ((1 << prio_bits) - 1u8) << (8 - prio_bits);
+    // unsafe { nvic.set_priority(Interrupt::USART1_EXTI25, hw) };
+    // nvic.enable(Interrupt::USART1_EXTI25);
+    // nvic.enable(Interrupt::EXTI0);
 
-    let mut timer4 = timer::tim4::Timer::new(device.TIM4,
-                                             constants::TICK_TIMEOUT,
-                                             clocks,
-                                             &mut rcc.apb1);
-    timer4.listen(timer::Event::TimeOut);
+    let mut timer4 =
+        timer::tim4::Timer::new(device.TIM4, 8888.hz(), clocks, &mut rcc.apb1);
+    // timer4.listen(timer::Event::TimeOut);
 
     let dw = unsafe { extract(&mut DW) };
     dw.debug(constants::messages::INIT);
     dw.blink();
 
-    let mut c = -1;
-    loop {
-        timer4.start(constants::TICK_TIMEOUT);
-        while let Err(nb::Error::WouldBlock) = timer4.wait() {}
-        c = (c + 1) % constants::TICK_PERIOD;
-        if c == 0 {
-            dw.debug(constants::messages::TICK);
-            // trigger the `EXTI0` interrupt
-            nvic.set_pending(Interrupt::EXTI0);
-        }
+    time_delay(&mut timer4, 7);
+
+    for i in 10..200 {
+        motor_pa0.set_duty(i);
+        motor_pa1.set_duty(i);
+        motor_pa2.set_duty(i);
+        motor_pa3.set_duty(i);
+        tick_delay(25000);
     }
+
+    time_delay(&mut timer4, 7);
+
+    for i in 10..200 {
+        motor_pa0.set_duty(50 - i);
+        motor_pa1.set_duty(50 - i);
+        motor_pa2.set_duty(50 - i);
+        motor_pa3.set_duty(50 - i);
+        tick_delay(25000);
+    }
+
+    // timer4.start(constants::TICK_TIMEOUT);
+    // while let Err(nb::Error::WouldBlock) = timer4.wait() {}
+    // c = (c + 1) % constants::TICK_PERIOD;
+    // if c == 0 {
+    //     dw.debug(constants::messages::TICK);
+    //     // trigger the `EXTI0` interrupt
+    //     nvic.set_pending(Interrupt::EXTI0);
+    // }
+    loop {}
 }
 
 unsafe fn extract<T>(opt: &'static mut Option<T>) -> &'static mut T {
@@ -310,22 +339,24 @@ fn usart1_exti25() {
             }
             dw.debug(b);
         },
-        Err(nb::Error::Other(e)) => match e {
-            serial::Error::Framing => {
-                dw.error(constants::messages::FRAMING_ERROR);
-            },
-            serial::Error::Overrun => {
-                rx.clear_overrun_error();
-            },
-            serial::Error::Parity => {
-                dw.error(constants::messages::PARITY_ERROR);
-            },
-            serial::Error::Noise => {
-                dw.error(constants::messages::NOISE);
-            },
-            _ => {
-                dw.error(constants::messages::UNKNOWN_ERROR);
-            },
+        Err(nb::Error::Other(e)) => {
+            match e {
+                serial::Error::Framing => {
+                    dw.error(constants::messages::FRAMING_ERROR);
+                },
+                serial::Error::Overrun => {
+                    rx.clear_overrun_error();
+                },
+                serial::Error::Parity => {
+                    dw.error(constants::messages::PARITY_ERROR);
+                },
+                serial::Error::Noise => {
+                    dw.error(constants::messages::NOISE);
+                },
+                _ => {
+                    dw.error(constants::messages::UNKNOWN_ERROR);
+                },
+            }
         },
         Err(nb::Error::WouldBlock) => {},
     };
@@ -345,4 +376,17 @@ fn default_handler(irqn: i16) {
     dw.debug(constants::messages::DEFAULT_INTERRUPT);
     dw.debug(is.as_ref());
     panic!("Unhandled exception (IRQn = {})", irqn);
+}
+
+fn time_delay<C>(c: &mut C, sec: u8)
+    where C: ehal::timer::CountDown<Time = Hertz>
+{
+    for i in 0..sec {
+        c.start(1.hz());
+        while let Err(nb::Error::WouldBlock) = c.wait() {}
+    }
+}
+
+fn tick_delay(ticks: usize) {
+    (0..ticks).for_each(|_| asm::nop());
 }

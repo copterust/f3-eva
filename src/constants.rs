@@ -1,9 +1,10 @@
-use super::hal::time::{Bps, Hertz, KiloHertz};
+use super::hal::time::{Bps, Hertz, KiloHertz, MegaHertz};
 
 pub const BAUD_RATE: Bps = Bps(9600);
 
 pub const DEBUG_TIMEOUT: Hertz = Hertz(1);
 pub const TICK_TIMEOUT: Hertz = Hertz(1);
+pub const TIM_TIMEOUT: MegaHertz = MegaHertz(1);
 pub const TICK_PERIOD: i8 = 5;
 pub const PWM_SPEED: KiloHertz = KiloHertz(650);
 
