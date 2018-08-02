@@ -94,8 +94,12 @@ fn main() -> ! {
     let gpioc = device.GPIOC.split(&mut rcc.ahb);
 
     let mut flash = device.FLASH.constrain();
-    let clocks =
-        rcc.cfgr.sysclk(64.mhz()).pclk1(32.mhz()).freeze(&mut flash.acr);
+    let clocks = rcc.cfgr
+                    .sysclk(72.mhz())
+                    .hclk(72.mhz())
+                    .pclk1(36.mhz())
+                    .pclk2(36.mhz())
+                    .freeze(&mut flash.acr);
 
     let txpin = gpioa.pa9.alternating(AF7);
     let rxpin = gpioa.pa10.alternating(AF7);
