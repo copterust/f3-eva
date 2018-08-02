@@ -2,25 +2,28 @@ use ehal;
 use nb;
 
 use beeper;
+use utils;
 
-pub struct DebugWriter<Wr>
+pub struct SerialLogger<Wr>
     where Wr: ehal::serial::Write<u8> + Sized
 {
     tx: Wr,
     beeper: beeper::Beeper,
 }
 
-impl<Wr> DebugWriter<Wr> where Wr: ehal::serial::Write<u8> + Sized
+impl<Wr> SerialLogger<Wr> where Wr: ehal::serial::Write<u8> + Sized
 {
     pub fn new(tx: Wr, beeper: beeper::Beeper) -> Self {
         Self { tx,
                beeper, }
     }
 
-    // fn delay(&mut self) {
-    //     self.timer.start(self.err_delay);
-    //     while let Err(nb::Error::WouldBlock) = self.timer.wait() {}
-    // }
+    pub fn blink(&mut self) {
+        self.beeper.on();
+        // XXX: use Delay and ms
+        utils::tick_delay(100000);
+        self.beeper.off();
+    }
 
     fn write_one<I: Into<u8>>(&mut self, data: I) {
         let b = data.into();
@@ -43,62 +46,54 @@ impl<Wr> DebugWriter<Wr> where Wr: ehal::serial::Write<u8> + Sized
     }
 }
 
-impl<Wr> Debugger for DebugWriter<Wr> where Wr: ehal::serial::Write<u8> + Sized
+impl<'a, Wr> Logger<'a> for SerialLogger<Wr>
+    where Wr: ehal::serial::Write<u8> + Sized
 {
-    fn debug<'a>(&mut self, data: impl Into<Debuggable<'a>>) {
+    type Underlying = u8;
+
+    fn debug(&mut self, data: impl Into<Debuggable<'a, u8>>) {
         match data.into() {
             Debuggable::One(byte) => self.write_one(byte),
             Debuggable::Many(bytes) => self.write_many(bytes),
         }
     }
-}
 
-impl<Wr> ErrorReporter for DebugWriter<Wr>
-    where Wr: ehal::serial::Write<u8> + Sized
-{
-    fn blink(&mut self) {
-        self.beeper.on();
-        // self.delay();
-        self.beeper.off();
-    }
-}
-
-pub trait Debugger: Sized {
-    fn debug<'a>(&mut self, data: impl Into<Debuggable<'a>>);
-}
-
-pub trait ErrorReporter: Debugger {
-    fn blink(&mut self);
-    fn error<'a>(&mut self, data: impl Into<Debuggable<'a>>) {
-        self.debug(data);
+    fn error(&mut self, data: impl Into<Debuggable<'a, u8>>) {
         self.blink();
+        self.debug(data);
     }
 }
 
-pub enum Debuggable<'a> {
-    One(u8),
-    Many(&'a [u8]),
+pub trait Logger<'a> {
+    type Underlying: 'a;
+    fn debug(&mut self, data: impl Into<Debuggable<'a, Self::Underlying>>);
+    fn error(&mut self, data: impl Into<Debuggable<'a, Self::Underlying>>);
 }
 
-impl<'a> From<u8> for Debuggable<'a> {
+pub enum Debuggable<'a, T: 'a> {
+    One(T),
+    Many(&'a [T]),
+}
+
+impl<'a> From<u8> for Debuggable<'a, u8> {
     fn from(arg: u8) -> Self {
         Debuggable::One(arg)
     }
 }
 
-impl<'a> From<char> for Debuggable<'a> {
+impl<'a> From<char> for Debuggable<'a, u8> {
     fn from(arg: char) -> Self {
         Debuggable::One(arg as u8)
     }
 }
 
-impl<'a> From<&'a str> for Debuggable<'a> {
+impl<'a> From<&'a str> for Debuggable<'a, u8> {
     fn from(arg: &'a str) -> Self {
         Debuggable::Many(arg.as_bytes())
     }
 }
 
-impl<'a> From<&'a [u8]> for Debuggable<'a> {
+impl<'a> From<&'a [u8]> for Debuggable<'a, u8> {
     fn from(arg: &'a [u8]) -> Self {
         Debuggable::Many(arg)
     }
