@@ -95,9 +95,8 @@ fn main() -> ! {
 
     let mut flash = device.FLASH.constrain();
     let clocks = rcc.cfgr
-                    .sysclk(72.mhz())
-                    .hclk(72.mhz())
-                    .pclk1(36.mhz())
+                    .sysclk(64.mhz())
+                    .pclk1(32.mhz())
                     .pclk2(36.mhz())
                     .freeze(&mut flash.acr);
 
@@ -343,24 +342,22 @@ fn usart1_exti25() {
             }
             dw.debug(b);
         },
-        Err(nb::Error::Other(e)) => {
-            match e {
-                serial::Error::Framing => {
-                    dw.error(constants::messages::FRAMING_ERROR);
-                },
-                serial::Error::Overrun => {
-                    rx.clear_overrun_error();
-                },
-                serial::Error::Parity => {
-                    dw.error(constants::messages::PARITY_ERROR);
-                },
-                serial::Error::Noise => {
-                    dw.error(constants::messages::NOISE);
-                },
-                _ => {
-                    dw.error(constants::messages::UNKNOWN_ERROR);
-                },
-            }
+        Err(nb::Error::Other(e)) => match e {
+            serial::Error::Framing => {
+                dw.error(constants::messages::FRAMING_ERROR);
+            },
+            serial::Error::Overrun => {
+                rx.clear_overrun_error();
+            },
+            serial::Error::Parity => {
+                dw.error(constants::messages::PARITY_ERROR);
+            },
+            serial::Error::Noise => {
+                dw.error(constants::messages::NOISE);
+            },
+            _ => {
+                dw.error(constants::messages::UNKNOWN_ERROR);
+            },
         },
         Err(nb::Error::WouldBlock) => {},
     };
