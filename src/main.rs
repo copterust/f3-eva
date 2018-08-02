@@ -20,17 +20,17 @@ extern crate libm;
 mod beeper;
 mod bootloader;
 mod constants;
-mod debug_writer;
 mod esc;
 mod itoa;
 mod kalman;
+mod logging;
 mod motor;
 mod utils;
 
 use bootloader::Bootloader;
-use debug_writer::{Debugger, ErrorReporter};
 use esc::pwm::Controller as ESC;
 use kalman::Kalman;
+use logging::{Debugger, ErrorReporter};
 use motor::{brushed::Coreless as CorelessMotor, Motor};
 
 use core::f32::consts::PI;
@@ -61,7 +61,7 @@ type MPU9250 =
                      gpiob::PB9<PullNone, Output<PushPull, LowSpeed>>,
                      mpu9250::Imu>;
 
-type DW = debug_writer::DebugWriter<Tx<hal::stm32f30x::USART1>>;
+type DW = logging::DebugWriter<Tx<hal::stm32f30x::USART1>>;
 
 type PWM1 = PwmBinding<gpioc::PC6<PullUp, AltFn<AF2, PushPull, MediumSpeed>>,
                        timer::tim3::Channel<timer::CH1, timer::Pwm1>,
@@ -154,8 +154,7 @@ fn main() -> ! {
     let kalman = Kalman::new(angle, gyro_bias);
     // XXX^ move above bullshit somewhere
 
-    let dw =
-        debug_writer::DebugWriter::new(tx, beeper::Beeper::new(gpioc.pc14));
+    let dw = logging::DebugWriter::new(tx, beeper::Beeper::new(gpioc.pc14));
 
     // MOTORS:
     // pa0 -- pa3
