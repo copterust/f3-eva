@@ -1,16 +1,15 @@
-use super::hal::time::{Bps, Hertz, KiloHertz, MegaHertz};
+use super::hal::time::{Bps, MegaHertz};
 
 pub const BAUD_RATE: Bps = Bps(9600);
 
-pub const DEBUG_TIMEOUT: Hertz = Hertz(1);
-pub const TICK_TIMEOUT: Hertz = Hertz(1);
+// pub const TICK_TIMEOUT: Hertz = Hertz(1);
 pub const TIM_TIMEOUT: MegaHertz = MegaHertz(1);
-pub const TICK_PERIOD: i8 = 5;
-pub const PWM_SPEED: KiloHertz = KiloHertz(650);
+// pub const TICK_PERIOD: i8 = 5;
+// pub const PWM_SPEED: KiloHertz = KiloHertz(650);
 
 pub mod messages {
     pub const INIT: &'static str = "init\r\n";
-    pub const TICK: &'static str = "tick\r\n";
+    // pub const TICK: &'static str = "tick\r\n";
     // pub const TOCK: char = 'o';
 
     pub const RESET: u8 = 'r' as u8;

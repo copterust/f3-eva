@@ -1,5 +1,4 @@
-//#![deny(unsafe_code)]
-//#![deny(warnings)]
+#![deny(warnings)]
 #![no_std]
 #![no_main]
 #![feature(use_extern_macros)]
@@ -26,6 +25,7 @@ mod esc;
 mod itoa;
 mod kalman;
 mod motor;
+mod utils;
 
 use bootloader::Bootloader;
 use debug_writer::{Debugger, ErrorReporter};
@@ -34,7 +34,7 @@ use kalman::Kalman;
 use motor::{brushed::Coreless as CorelessMotor, Motor};
 
 use core::f32::consts::PI;
-use cortex_m::asm;
+
 use hal::delay::Delay;
 use hal::gpio::{gpiob, gpioc};
 use hal::gpio::{AF2, AF5, AF7, AltFn};
@@ -43,12 +43,12 @@ use hal::prelude::*;
 use hal::pwm::PwmBinding;
 use hal::serial::{self, Rx, Serial, Tx};
 use hal::spi::Spi;
-use hal::time::{Hertz, U32Ext};
+
 use hal::timer;
 use libm::F32Ext;
 use mpu9250::Mpu9250;
 use rt::ExceptionFrame;
-use stm32f30x::Interrupt;
+// use stm32f30x::Interrupt;
 
 type MPU9250 =
     mpu9250::Mpu9250<Spi<hal::stm32f30x::SPI1,
@@ -215,24 +215,24 @@ fn main() -> ! {
     dw.debug(constants::messages::INIT);
     dw.blink();
 
-    time_delay(&mut timer4, 7);
+    utils::time_delay(&mut timer4, 7);
 
     for i in 10..200 {
         motor_pa0.set_duty(i);
         motor_pa1.set_duty(i);
         motor_pa2.set_duty(i);
         motor_pa3.set_duty(i);
-        tick_delay(25000);
+        utils::tick_delay(25000);
     }
 
-    time_delay(&mut timer4, 7);
+    utils::time_delay(&mut timer4, 7);
 
     for i in 10..200 {
         motor_pa0.set_duty(50 - i);
         motor_pa1.set_duty(50 - i);
         motor_pa2.set_duty(50 - i);
         motor_pa3.set_duty(50 - i);
-        tick_delay(25000);
+        utils::tick_delay(25000);
     }
 
     // timer4.start(constants::TICK_TIMEOUT);
@@ -376,17 +376,4 @@ fn default_handler(irqn: i16) {
     dw.debug(constants::messages::DEFAULT_INTERRUPT);
     dw.debug(is.as_ref());
     panic!("Unhandled exception (IRQn = {})", irqn);
-}
-
-fn time_delay<C>(c: &mut C, sec: u8)
-    where C: ehal::timer::CountDown<Time = Hertz>
-{
-    for i in 0..sec {
-        c.start(1.hz());
-        while let Err(nb::Error::WouldBlock) = c.wait() {}
-    }
-}
-
-fn tick_delay(ticks: usize) {
-    (0..ticks).for_each(|_| asm::nop());
 }
