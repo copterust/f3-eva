@@ -21,7 +21,6 @@ mod beeper;
 mod bootloader;
 mod constants;
 mod esc;
-mod itoa;
 mod kalman;
 mod logging;
 mod motor;
@@ -30,10 +29,10 @@ mod utils;
 use bootloader::Bootloader;
 use esc::pwm::Controller as ESC;
 use kalman::Kalman;
-use logging::Logger;
 use motor::{brushed::Coreless as CorelessMotor, Motor};
 
 use core::f32::consts::PI;
+use core::fmt::Write;
 
 use hal::delay::Delay;
 use hal::gpio::gpiob;
@@ -48,7 +47,7 @@ use hal::timer;
 use libm::F32Ext;
 use mpu9250::Mpu9250;
 use rt::ExceptionFrame;
-// use stm32f30x::Interrupt;
+use stm32f30x::Interrupt;
 
 type MPU9250 =
     mpu9250::Mpu9250<Spi<hal::stm32f30x::SPI1,
@@ -195,23 +194,16 @@ fn main() -> ! {
         KALMAN = Some(kalman);
     }
 
-    // unsafe { cortex_m::interrupt::enable() };
-    // let mut nvic = core.NVIC;
-    // let prio_bits = stm32f30x::NVIC_PRIO_BITS;
-    // let hw = ((1 << prio_bits) - 1u8) << (8 - prio_bits);
-    // unsafe { nvic.set_priority(Interrupt::USART1_EXTI25, hw) };
-    // nvic.enable(Interrupt::USART1_EXTI25);
-    // nvic.enable(Interrupt::EXTI0);
-
     let mut timer4 =
         timer::tim4::Timer::new(device.TIM4, 8888.hz(), clocks, &mut rcc.apb1);
     // timer4.listen(timer::Event::TimeOut);
 
     let l = unsafe { extract(&mut L) };
-    l.debug(constants::messages::INIT);
+    write!(l, "init\r\n");
     l.blink();
 
     utils::time_delay(&mut timer4, 7);
+    write!(l, "safety off\r\n");
 
     for i in 10..200 {
         motor_pa0.set_duty(i);
@@ -220,26 +212,38 @@ fn main() -> ! {
         motor_pa3.set_duty(i);
         utils::tick_delay(25000);
     }
+    write!(l, "lift off\r\n");
 
     utils::time_delay(&mut timer4, 7);
 
     for i in 10..200 {
-        motor_pa0.set_duty(50 - i);
-        motor_pa1.set_duty(50 - i);
-        motor_pa2.set_duty(50 - i);
-        motor_pa3.set_duty(50 - i);
+        motor_pa0.set_duty(200 - i);
+        motor_pa1.set_duty(200 - i);
+        motor_pa2.set_duty(200 - i);
+        motor_pa3.set_duty(200 - i);
         utils::tick_delay(25000);
     }
+    write!(l, "take down\r\n");
 
-    // timer4.start(constants::TICK_TIMEOUT);
-    // while let Err(nb::Error::WouldBlock) = timer4.wait() {}
-    // c = (c + 1) % constants::TICK_PERIOD;
-    // if c == 0 {
-    //     l.debug(constants::messages::TICK);
-    //     // trigger the `EXTI0` interrupt
-    //     nvic.set_pending(Interrupt::EXTI0);
-    // }
-    loop {}
+    unsafe { cortex_m::interrupt::enable() };
+    let mut nvic = core.NVIC;
+    let prio_bits = stm32f30x::NVIC_PRIO_BITS;
+    let hw = ((1 << prio_bits) - 1u8) << (8 - prio_bits);
+    unsafe { nvic.set_priority(Interrupt::USART1_EXTI25, hw) };
+    nvic.enable(Interrupt::USART1_EXTI25);
+    nvic.enable(Interrupt::EXTI0);
+
+    let mut c = -1;
+    loop {
+        timer4.start(constants::TICK_TIMEOUT);
+        while let Err(nb::Error::WouldBlock) = timer4.wait() {}
+        c = (c + 1) % constants::TICK_PERIOD;
+        if c == 0 {
+            write!(l, "tick\r\n");
+            // trigger the `EXTI0` interrupt
+            nvic.set_pending(Interrupt::EXTI0);
+        }
+    }
 }
 
 unsafe fn extract<T>(opt: &'static mut Option<T>) -> &'static mut T {
@@ -252,16 +256,11 @@ unsafe fn extract<T>(opt: &'static mut Option<T>) -> &'static mut T {
 fn print_gyro(l: &mut L, mpu: &mut MPU9250) {
     match mpu.gyro() {
         Ok(g) => {
-            l.debug("gx:");
-            l.debug(itoa::itoa_i16(g.x).as_ref());
-            l.debug("; gy:");
-            l.debug(itoa::itoa_i16(g.y).as_ref());
-            l.debug("; gz:");
-            l.debug(itoa::itoa_i16(g.z).as_ref());
-            l.debug("\r\n");
+            write!(l, "gx: {}; gy: {}; gz: {}\r\n", g.x, g.y, g.z);
         },
-        Err(_) => {
-            l.debug(constants::messages::ERROR);
+        Err(m) => {
+            l.blink();
+            write!(l, "Gyro error: {:?}", m);
         },
     };
 }
@@ -269,28 +268,21 @@ fn print_gyro(l: &mut L, mpu: &mut MPU9250) {
 fn print_accel(l: &mut L, mpu: &mut MPU9250) {
     match mpu.accel() {
         Ok(a) => {
-            l.debug("ax:");
-            l.debug(itoa::itoa_i16(a.x).as_ref());
-            l.debug("; ay:");
-            l.debug(itoa::itoa_i16(a.y).as_ref());
-            l.debug("; az:");
-            l.debug(itoa::itoa_i16(a.z).as_ref());
-            l.debug("\r\n");
+            write!(l, "ax: {}; ay: {}; az: {}\r\n", a.x, a.y, a.z);
         },
-        Err(_) => {
-            l.debug(constants::messages::ERROR);
+        Err(m) => {
+            l.blink();
+            write!(l, "accel error: {:?}", m);
         },
     };
 }
 
 fn print_kalman_estimate(l: &mut L, mpu: &mut MPU9250, kalman: &mut Kalman) {
-    l.debug("kalman estimate: ");
     let (ary, arz, _, gx) = mpu.aryz_t_gx().ok().unwrap();
     let omega = (gx as f32) * K_G;
     let angle = (ary as f32 * K_A).atan2(arz as f32 * K_A) * 180. / PI;
-    let estimate = kalman.update(angle, omega) as u32;
-    l.debug(itoa::itoa_u32(estimate).as_ref());
-    l.debug("\r\n");
+    let estimate = kalman.update(angle, omega);
+    write!(l, "kalman estimate: {}\r\n", estimate);
 }
 
 interrupt!(EXTI0, exti0);
@@ -302,7 +294,7 @@ fn exti0() {
     print_gyro(&mut l, &mut mpu);
     print_accel(&mut l, &mut mpu);
     print_kalman_estimate(&mut l, &mut mpu, &mut kalman);
-    l.debug("\r\n");
+    write!(l, "\r\n");
 }
 
 interrupt!(USART1_EXTI25, usart1_exti25);
@@ -323,24 +315,27 @@ fn usart1_exti25() {
             if b == constants::messages::MOTOR {
                 motor.set_rpm(1.0);
             }
-            l.debug(b);
+            write!(l, "{}", b);
         },
-        Err(nb::Error::Other(e)) => match e {
-            serial::Error::Framing => {
-                l.error(constants::messages::FRAMING_ERROR);
-            },
-            serial::Error::Overrun => {
-                rx.clear_overrun_error();
-            },
-            serial::Error::Parity => {
-                l.error(constants::messages::PARITY_ERROR);
-            },
-            serial::Error::Noise => {
-                l.error(constants::messages::NOISE);
-            },
-            _ => {
-                l.error(constants::messages::UNKNOWN_ERROR);
-            },
+        Err(nb::Error::Other(e)) => {
+            match e {
+                // serial::Error::Framing => {
+                //     l.error(constants::messages::FRAMING_ERROR);
+                // },
+                serial::Error::Overrun => {
+                    rx.clear_overrun_error();
+                },
+                // serial::Error::Parity => {
+                //     l.error(constants::messages::PARITY_ERROR);
+                // },
+                // serial::Error::Noise => {
+                //     l.error(constants::messages::NOISE);
+                // },
+                _ => {
+                    l.blink();
+                    write!(l, "read error: {:?}", e);
+                },
+            }
         },
         Err(nb::Error::WouldBlock) => {},
     };
@@ -349,15 +344,14 @@ fn usart1_exti25() {
 exception!(HardFault, hard_fault);
 fn hard_fault(ef: &ExceptionFrame) -> ! {
     let l = unsafe { extract(&mut L) };
-    l.error(constants::messages::HARD_FAULT);
+    l.blink();
+    write!(l, "hard fault as {:?}", ef);
     panic!("HardFault at {:#?}", ef);
 }
 
 exception!(*, default_handler);
 fn default_handler(irqn: i16) {
     let l = unsafe { extract(&mut L) };
-    let is = itoa::itoa_i16(irqn);
-    l.debug(constants::messages::DEFAULT_INTERRUPT);
-    l.debug(is.as_ref());
+    write!(l, "Interrupt: {}", irqn);
     panic!("Unhandled exception (IRQn = {})", irqn);
 }

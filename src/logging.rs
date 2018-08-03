@@ -2,10 +2,11 @@ use ehal;
 use nb;
 
 use beeper;
+use core::fmt;
 use utils;
 
 pub struct SerialLogger<Wr>
-    where Wr: ehal::serial::Write<u8> + Sized
+    where Wr: ehal::serial::Write<u8>
 {
     tx: Wr,
     beeper: beeper::Beeper,
@@ -25,7 +26,7 @@ impl<Wr> SerialLogger<Wr> where Wr: ehal::serial::Write<u8> + Sized
         self.beeper.off();
     }
 
-    fn write_one<I: Into<u8>>(&mut self, data: I) {
+    fn write_one(&mut self, data: u8) {
         let b = data.into();
         match nb::block!(self.tx.write(b)) {
             Ok(_) => {},
@@ -46,55 +47,15 @@ impl<Wr> SerialLogger<Wr> where Wr: ehal::serial::Write<u8> + Sized
     }
 }
 
-impl<'a, Wr> Logger<'a> for SerialLogger<Wr>
-    where Wr: ehal::serial::Write<u8> + Sized
+impl<Wr> fmt::Write for SerialLogger<Wr> where Wr: ehal::serial::Write<u8>
 {
-    type Underlying = u8;
-
-    fn debug(&mut self, data: impl Into<Debuggable<'a, u8>>) {
-        match data.into() {
-            Debuggable::One(byte) => self.write_one(byte),
-            Debuggable::Many(bytes) => self.write_many(bytes),
-        }
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.write_many(s.as_bytes());
+        Ok(())
     }
 
-    fn error(&mut self, data: impl Into<Debuggable<'a, u8>>) {
-        self.blink();
-        self.debug(data);
-    }
-}
-
-pub trait Logger<'a> {
-    type Underlying: 'a;
-    fn debug(&mut self, data: impl Into<Debuggable<'a, Self::Underlying>>);
-    fn error(&mut self, data: impl Into<Debuggable<'a, Self::Underlying>>);
-}
-
-pub enum Debuggable<'a, T: 'a> {
-    One(T),
-    Many(&'a [T]),
-}
-
-impl<'a> From<u8> for Debuggable<'a, u8> {
-    fn from(arg: u8) -> Self {
-        Debuggable::One(arg)
-    }
-}
-
-impl<'a> From<char> for Debuggable<'a, u8> {
-    fn from(arg: char) -> Self {
-        Debuggable::One(arg as u8)
-    }
-}
-
-impl<'a> From<&'a str> for Debuggable<'a, u8> {
-    fn from(arg: &'a str) -> Self {
-        Debuggable::Many(arg.as_bytes())
-    }
-}
-
-impl<'a> From<&'a [u8]> for Debuggable<'a, u8> {
-    fn from(arg: &'a [u8]) -> Self {
-        Debuggable::Many(arg)
+    fn write_char(&mut self, s: char) -> fmt::Result {
+        self.write_one(s as u8);
+        Ok(())
     }
 }

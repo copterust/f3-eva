@@ -6,6 +6,7 @@ use hal::gpio::{
     gpioc::PC14, LowSpeed, Output, PinMode, PullNone, PullType, PushPull
 };
 
+// XXX: rethink
 pub struct Beeper {
     pin: PC14<PullNone, Output<PushPull, LowSpeed>>,
 }
