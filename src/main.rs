@@ -17,7 +17,6 @@ extern crate stm32f30x;
 extern crate alt_stm32f30x_hal as hal;
 extern crate libm;
 
-mod beeper;
 mod bootloader;
 mod constants;
 mod esc;
@@ -35,7 +34,7 @@ use core::f32::consts::PI;
 use core::fmt::Write;
 
 use hal::delay::Delay;
-use hal::gpio::gpiob;
+use hal::gpio::{gpiob, gpioc};
 use hal::gpio::{AF5, AF7, AltFn};
 use hal::gpio::{LowSpeed, Output, PullNone, PullUp, PushPull};
 use hal::prelude::*;
@@ -60,7 +59,9 @@ type MPU9250 =
                      gpiob::PB9<PullNone, Output<PushPull, LowSpeed>>,
                      mpu9250::Imu>;
 
-type L = logging::SerialLogger<Tx<hal::stm32f30x::USART1>>;
+type L = logging::SerialLogger<Tx<hal::stm32f30x::USART1>,
+                               gpioc::PC14<PullNone,
+                                           Output<PushPull, LowSpeed>>>;
 
 static mut L: Option<L> = None;
 static mut RX: Option<Rx<hal::stm32f30x::USART1>> = None;
@@ -148,7 +149,8 @@ fn main() -> ! {
     let kalman = Kalman::new(angle, gyro_bias);
     // XXX^ move above bullshit somewhere
 
-    let l = logging::SerialLogger::new(tx, beeper::Beeper::new(gpioc.pc14));
+    let beeper = gpioc.pc14.output().pull_type(PullNone);
+    let l = logging::SerialLogger::new(tx, beeper);
 
     // MOTORS:
     // pa0 -- pa3

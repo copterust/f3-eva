@@ -1,38 +1,38 @@
 use ehal;
 use nb;
 
-use beeper;
 use core::fmt;
 use utils;
 
-pub struct SerialLogger<Wr>
-    where Wr: ehal::serial::Write<u8>
+pub struct SerialLogger<Wr, Op>
+    where Wr: ehal::serial::Write<u8>,
+          Op: ehal::digital::OutputPin
 {
     tx: Wr,
-    beeper: beeper::Beeper,
+    beeper: Op,
 }
 
-impl<Wr> SerialLogger<Wr> where Wr: ehal::serial::Write<u8> + Sized
+impl<Wr, Op> SerialLogger<Wr, Op>
+    where Wr: ehal::serial::Write<u8> + Sized,
+          Op: ehal::digital::OutputPin
 {
-    pub fn new(tx: Wr, beeper: beeper::Beeper) -> Self {
+    pub fn new(tx: Wr, beeper: Op) -> Self {
         Self { tx,
                beeper, }
     }
 
     pub fn blink(&mut self) {
-        self.beeper.on();
+        self.beeper.set_high();
         // XXX: use Delay and ms
         utils::tick_delay(100000);
-        self.beeper.off();
+        self.beeper.set_low();
     }
 
     fn write_one(&mut self, data: u8) {
         let b = data.into();
         match nb::block!(self.tx.write(b)) {
             Ok(_) => {},
-            Err(_) => {
-                self.blink();
-            },
+            Err(_) => self.blink(),
         }
     }
 
@@ -42,12 +42,14 @@ impl<Wr> SerialLogger<Wr> where Wr: ehal::serial::Write<u8> + Sized
         }
         match self.tx.flush() {
             Ok(_) => {},
-            Err(_) => {},
+            Err(_) => self.blink(),
         };
     }
 }
 
-impl<Wr> fmt::Write for SerialLogger<Wr> where Wr: ehal::serial::Write<u8>
+impl<Wr, Op> fmt::Write for SerialLogger<Wr, Op>
+    where Wr: ehal::serial::Write<u8>,
+          Op: ehal::digital::OutputPin
 {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write_many(s.as_bytes());
