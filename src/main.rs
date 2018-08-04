@@ -231,7 +231,6 @@ fn main() -> ! {
         c = (c + 1) % constants::TICK_PERIOD;
         if c == 0 {
             write!(l, "tick\r\n");
-            // trigger the `EXTI0` interrupt
             nvic.set_pending(Interrupt::EXTI0);
         }
     }
@@ -289,7 +288,6 @@ fn exti0() {
 }
 
 interrupt!(USART1_EXTI25, usart1_exti25);
-// Send back the received byte
 fn usart1_exti25() {
     let rx = unsafe { extract(&mut RX) };
     let l = unsafe { extract(&mut L) };
@@ -310,18 +308,9 @@ fn usart1_exti25() {
         },
         Err(nb::Error::Other(e)) => {
             match e {
-                // serial::Error::Framing => {
-                //     l.error(constants::messages::FRAMING_ERROR);
-                // },
                 serial::Error::Overrun => {
                     rx.clear_overrun_error();
                 },
-                // serial::Error::Parity => {
-                //     l.error(constants::messages::PARITY_ERROR);
-                // },
-                // serial::Error::Noise => {
-                //     l.error(constants::messages::NOISE);
-                // },
                 _ => {
                     l.blink();
                     write!(l, "read error: {:?}", e);
