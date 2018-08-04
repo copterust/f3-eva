@@ -176,16 +176,6 @@ fn main() -> ! {
     let esc = ESC::new();
     let motor = CorelessMotor::new();
 
-    // let tim3 = timer::tim3::Timer::new(device.TIM3,
-    //                                    constants::PWM_SPEED,
-    //                                    clocks,
-    //                                    &mut rcc.apb1);
-    // let (ch1, mut tim3) = tim3.take_ch1();
-    // tim3.enable();
-    // let pwm = PwmBinding::<gpioc::PC6<_, _>,
-    //                      timer::tim3::Channel<timer::CH1, _>,
-    //                      AF2>::new(gpioc.pc6.pull_type(PullUp), ch1);
-
     unsafe {
         L = Some(l);
         BOOTLOADER = Some(bootloader);
@@ -198,13 +188,12 @@ fn main() -> ! {
 
     let mut timer4 =
         timer::tim4::Timer::new(device.TIM4, 8888.hz(), clocks, &mut rcc.apb1);
-    // timer4.listen(timer::Event::TimeOut);
 
     let l = unsafe { extract(&mut L) };
     write!(l, "init\r\n");
     l.blink();
 
-    utils::time_delay(&mut timer4, 7);
+    delay.delay_ms(7000_u32);
     write!(l, "safety off\r\n");
 
     for i in 10..200 {
@@ -216,7 +205,7 @@ fn main() -> ! {
     }
     write!(l, "lift off\r\n");
 
-    utils::time_delay(&mut timer4, 7);
+    delay.delay_ms(7000_u32);
 
     for i in 10..200 {
         motor_pa0.set_duty(200 - i);
