@@ -1,15 +1,11 @@
-use cortex_m;
-
 pub trait Bootloader: Sized {
     fn to_bootloader(&mut self);
     fn system_reset(&mut self);
 }
 
 pub mod stm32f30x {
-    use super::cortex_m;
-
     use core;
-    use cortex_m::{interrupt, register::msp};
+    use cortex_m::{self, interrupt, register::msp};
 
     use super::Bootloader as BootloaderTrait;
 

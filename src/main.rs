@@ -1,21 +1,6 @@
 #![deny(warnings)]
 #![no_std]
 #![no_main]
-#![feature(use_extern_macros)]
-#![feature(in_band_lifetimes)]
-
-extern crate cortex_m;
-#[macro_use]
-extern crate cortex_m_rt as rt;
-extern crate nb;
-extern crate panic_abort;
-
-extern crate embedded_hal as ehal;
-extern crate mpu9250;
-#[macro_use]
-extern crate stm32f30x;
-extern crate alt_stm32f30x_hal as hal;
-extern crate libm;
 
 mod bootloader;
 mod constants;
@@ -25,10 +10,12 @@ mod logging;
 mod motor;
 mod utils;
 
-use bootloader::Bootloader;
-use esc::pwm::Controller as ESC;
-use kalman::Kalman;
-use motor::{brushed::Coreless as CorelessMotor, Motor};
+extern crate panic_abort;
+
+use crate::bootloader::Bootloader;
+use crate::esc::pwm::Controller as ESC;
+use crate::kalman::Kalman;
+use crate::motor::{brushed::Coreless as CorelessMotor, Motor};
 
 use core::f32::consts::PI;
 use core::fmt::Write;
@@ -44,8 +31,8 @@ use hal::spi::Spi;
 use hal::timer;
 use libm::F32Ext;
 use mpu9250::Mpu9250;
-use rt::ExceptionFrame;
-use stm32f30x::Interrupt;
+use rt::{entry, exception, ExceptionFrame};
+use stm32f30x::{interrupt, Interrupt};
 
 type MPU9250 =
     mpu9250::Mpu9250<Spi<hal::stm32f30x::SPI1,
@@ -301,16 +288,14 @@ fn usart1_exti25() {
             }
             write!(l, "{}", b);
         },
-        Err(nb::Error::Other(e)) => {
-            match e {
-                serial::Error::Overrun => {
-                    rx.clear_overrun_error();
-                },
-                _ => {
-                    l.blink();
-                    write!(l, "read error: {:?}", e);
-                },
-            }
+        Err(nb::Error::Other(e)) => match e {
+            serial::Error::Overrun => {
+                rx.clear_overrun_error();
+            },
+            _ => {
+                l.blink();
+                write!(l, "read error: {:?}", e);
+            },
         },
         Err(nb::Error::WouldBlock) => {},
     };

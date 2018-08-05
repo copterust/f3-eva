@@ -1,7 +1,11 @@
+cargo-features = ["edition", "rename-dependency"]
+
 [package]
 name = "f3_eva"
 version = "0.1.0"
 authors = ["Roma Sokolov", "Alexander Zhuravlev"]
+edition = '2018'
+
 
 [profile.dev]
 panic = "abort"
@@ -11,9 +15,6 @@ lto = false
 codegen-units = 1
 incremental = false
 
-[dependencies.embedded-hal]
-features = ["unproven"]
-version = "0.2.1"
 
 [dependencies.stm32f30x]
 version = "0.7.0"
@@ -28,8 +29,9 @@ version = "0.1.1"
 [dependencies.cortex-m]
 version = "0.5.2"
 
-[dependencies.cortex-m-rt]
+[dependencies.rt]
 version = "0.5.1"
+package = "cortex-m-rt"
 
 [dependencies]
 libm = "0.1.2"
@@ -38,5 +40,11 @@ libm = "0.1.2"
 git = "https://github.com/copterust/mpu9250.git"
 rev = "d6fbfd549dcd3627c4aa08d2d8db3da15e9f6ac9"
 
-[dependencies.alt-stm32f30x-hal]
+[dependencies.ehal]
+features = ["unproven"]
+version = "0.2.1"
+package = "embedded-hal"
+
+[dependencies.hal]
 version = "0.5.0"
+package = "alt-stm32f30x-hal"

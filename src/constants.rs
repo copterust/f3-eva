@@ -1,4 +1,4 @@
-use super::hal::time::{Bps, Hertz, MegaHertz};
+use hal::time::{Bps, Hertz, MegaHertz};
 
 pub const BAUD_RATE: Bps = Bps(9600);
 

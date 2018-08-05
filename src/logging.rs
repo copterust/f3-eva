@@ -2,7 +2,7 @@ use ehal;
 use nb;
 
 use core::fmt;
-use utils;
+use crate::utils;
 
 pub struct SerialLogger<Wr, Op>
     where Wr: ehal::serial::Write<u8>,
