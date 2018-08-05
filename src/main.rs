@@ -36,9 +36,8 @@ use core::fmt::Write;
 use hal::delay::Delay;
 use hal::gpio::{gpiob, gpioc};
 use hal::gpio::{AF5, AF7, AltFn};
-use hal::gpio::{LowSpeed, Output, PullNone, PullUp, PushPull};
+use hal::gpio::{LowSpeed, MediumSpeed, Output, PullNone, PullUp, PushPull};
 use hal::prelude::*;
-use hal::pwm::PwmBinding;
 use hal::serial::{self, Rx, Serial, Tx};
 use hal::spi::Spi;
 
@@ -159,14 +158,10 @@ fn main() -> ! {
                                 constants::TIM_TIMEOUT,
                                 clocks,
                                 &mut rcc.apb1).take_all();
-    let mut motor_pa0 =
-        PwmBinding::bind_pa0_tim2_ch1(gpioa.pa0.pull_type(PullUp), ch1);
-    let mut motor_pa1 =
-        PwmBinding::bind_pa1_tim2_ch2(gpioa.pa1.pull_type(PullUp), ch2);
-    let mut motor_pa2 =
-        PwmBinding::bind_pa2_tim2_ch3(gpioa.pa2.pull_type(PullUp), ch3);
-    let mut motor_pa3 =
-        PwmBinding::bind_pa3_tim2_ch4(gpioa.pa3.pull_type(PullUp), ch4);
+    let mut motor_pa0 = gpioa.pa0.pull_type(PullUp).to_pwm(ch1, MediumSpeed);
+    let mut motor_pa1 = gpioa.pa1.pull_type(PullUp).to_pwm(ch2, MediumSpeed);
+    let mut motor_pa2 = gpioa.pa2.pull_type(PullUp).to_pwm(ch3, MediumSpeed);
+    let mut motor_pa3 = gpioa.pa3.pull_type(PullUp).to_pwm(ch4, MediumSpeed);
     motor_pa0.enable();
     motor_pa1.enable();
     motor_pa2.enable();

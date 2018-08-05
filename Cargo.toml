@@ -15,9 +15,6 @@ incremental = false
 features = ["unproven"]
 version = "0.2.1"
 
-[dependencies.alt-stm32f30x-hal]
-version = "0.4.1"
-
 [dependencies.stm32f30x]
 version = "0.7.0"
 features = ["rt"]
@@ -40,3 +37,6 @@ libm = "0.1.2"
 [dependencies.mpu9250]
 git = "https://github.com/copterust/mpu9250.git"
 rev = "d6fbfd549dcd3627c4aa08d2d8db3da15e9f6ac9"
+
+[dependencies.alt-stm32f30x-hal]
+version = "0.5.0"
