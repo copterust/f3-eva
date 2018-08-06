@@ -10,7 +10,9 @@ mod logging;
 mod motor;
 mod utils;
 
-extern crate panic_abort;
+// used to provide panic_implementation
+#[allow(unused)]
+use panic_abort;
 
 use crate::bootloader::Bootloader;
 use crate::esc::pwm::Controller as ESC;
