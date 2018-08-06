@@ -15,26 +15,21 @@ lto = false
 codegen-units = 1
 incremental = false
 
+[dependencies]
+panic-abort = "0.2.0"
+nb = "0.1.1"
+cortex-m = "0.5.2"
+libm = "0.1.2"
+stm32f30x = {version = "0.7.0", features = ["rt"]}
 
-[dependencies.stm32f30x]
-version = "0.7.0"
-features = ["rt"]
-
-[dependencies.panic-abort]
-version = "0.2.0"
-
-[dependencies.nb]
-version = "0.1.1"
-
-[dependencies.cortex-m]
-version = "0.5.2"
 
 [dependencies.rt]
 version = "0.5.1"
 package = "cortex-m-rt"
 
-[dependencies]
-libm = "0.1.2"
+[dependencies.madgwick]
+git = "https://github.com/little-arhat/madgwick"
+rev = "39ef6764dc230ff00ecc757c8c7130dc742bdb0c"
 
 [dependencies.mpu9250]
 git = "https://github.com/copterust/mpu9250.git"

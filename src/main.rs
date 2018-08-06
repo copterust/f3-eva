@@ -2,50 +2,52 @@
 #![no_std]
 #![no_main]
 
-mod bootloader;
-mod constants;
-mod esc;
-mod kalman;
-mod logging;
-mod motor;
-mod utils;
-
 // used to provide panic_implementation
 #[allow(unused)]
 use panic_abort;
 
+// internal
+mod ahrs;
+mod bootloader;
+mod constants;
+mod esc;
+mod logging;
+mod motor;
+mod utils;
+
+// internal imports
 use crate::bootloader::Bootloader;
 use crate::esc::pwm::Controller as ESC;
-use crate::kalman::Kalman;
 use crate::motor::{brushed::Coreless as CorelessMotor, Motor};
+use crate::utils::WallClockDelay;
 
-use core::f32::consts::PI;
+// rust std/core
 use core::fmt::Write;
 
+// external
 use hal::delay::Delay;
 use hal::gpio::{gpiob, gpioc};
-use hal::gpio::{AF5, AF7, AltFn};
+use hal::gpio::{AltFn, AF5, AF7};
 use hal::gpio::{LowSpeed, MediumSpeed, Output, PullNone, PullUp, PushPull};
 use hal::prelude::*;
 use hal::serial::{self, Rx, Serial, Tx};
 use hal::spi::Spi;
-
 use hal::timer;
-use libm::F32Ext;
+// use libm::F32Ext;
 use mpu9250::Mpu9250;
 use rt::{entry, exception, ExceptionFrame};
 use stm32f30x::{interrupt, Interrupt};
 
-type MPU9250 =
-    mpu9250::Mpu9250<Spi<hal::stm32f30x::SPI1,
-                         (gpiob::PB3<PullNone,
-                                     AltFn<AF5, PushPull, LowSpeed>>,
-                         gpiob::PB4<PullNone,
-                                     AltFn<AF5, PushPull, LowSpeed>>,
-                         gpiob::PB5<PullNone,
-                                     AltFn<AF5, PushPull, LowSpeed>>)>,
-                     gpiob::PB9<PullNone, Output<PushPull, LowSpeed>>,
-                     mpu9250::Imu>;
+#[allow(unused)]
+type SPI = Spi<hal::stm32f30x::SPI1,
+               (gpiob::PB3<PullNone, AltFn<AF5, PushPull, LowSpeed>>,
+               gpiob::PB4<PullNone, AltFn<AF5, PushPull, LowSpeed>>,
+               gpiob::PB5<PullNone, AltFn<AF5, PushPull, LowSpeed>>)>;
+#[allow(unused)]
+type MPU9250 = mpu9250::Mpu9250<SPI,
+                                gpiob::PB9<PullNone,
+                                           Output<PushPull, LowSpeed>>,
+                                mpu9250::Marg>;
 
 type L = logging::SerialLogger<Tx<hal::stm32f30x::USART1>,
                                gpioc::PC14<PullNone,
@@ -56,13 +58,6 @@ static mut RX: Option<Rx<hal::stm32f30x::USART1>> = None;
 static mut BOOTLOADER: Option<bootloader::stm32f30x::Bootloader> = None;
 static mut ESC: Option<ESC> = None;
 static mut MOTORS: Option<CorelessMotor> = None;
-static mut MPU: Option<MPU9250> = None;
-static mut KALMAN: Option<Kalman> = None;
-
-// gyroscope sensitivity
-// XXX: move to KALMAN or constants
-const K_G: f32 = 250. / (1 << 15) as f32;
-const K_A: f32 = 2. / (1 << 15) as f32;
 
 entry!(main);
 
@@ -95,50 +90,31 @@ fn main() -> ! {
     // COBS frame
     tx.write(0x00).unwrap();
 
+    // XXX: split delay and pass to logger as well?
+    let mut delay = Delay::new(core.SYST, clocks);
+
+    let beeper = gpioc.pc14.output().pull_type(PullNone);
+    let mut l = logging::SerialLogger::new(tx, beeper);
+    write!(l, "Logger ok\r\n");
+
     // SPI1
     let ncs = gpiob.pb9.output().push_pull();
     let scl_sck = gpiob.pb3.alternating(AF5);
     let sda_sdi_mosi = gpiob.pb5.alternating(AF5);
     let ad0_sdo_miso = gpiob.pb4.alternating(AF5);
-
     let spi = Spi::spi1(device.SPI1,
                         (scl_sck, ad0_sdo_miso, sda_sdi_mosi),
                         mpu9250::MODE,
                         1.mhz(),
                         clocks,
                         &mut rcc.apb2);
-
-    let mut delay = Delay::new(core.SYST, clocks);
-    let mut mpu9250 = Mpu9250::imu(spi, ncs, &mut delay).unwrap();
-    mpu9250.a_scale(mpu9250::FSScale::_01).unwrap();
-    mpu9250.g_scale(mpu9250::FSScale::_01).unwrap();
-
-    // CALIBRATION & KALMAN FILTER INITIALIZATION
-    // TODO: abstract mpu9250 as Accelerometer/Gyro and perform
-    //       initialization elsewhere
-    let (mut gx, mut ary, mut arz) = (0, 0, 0);
-    const NSAMPLES: i32 = 128;
-    for _ in 0..NSAMPLES {
-        let (ary_, arz_, _, gx_) = mpu9250.aryz_t_gx().ok().unwrap();
-        ary += ary_ as i32;
-        arz += arz_ as i32;
-        gx += gx_ as i32;
-        delay.delay_ms(1_u8);
-    }
-
-    // average
-    gx /= NSAMPLES;
-    ary /= NSAMPLES;
-    arz /= NSAMPLES;
-
-    let gyro_bias = gx as f32 * K_G;
-    let angle = (ary as f32 * K_A).atan2(arz as f32 * K_A) * 180. / PI;
-
-    let kalman = Kalman::new(angle, gyro_bias);
-    // XXX^ move above bullshit somewhere
-
-    let beeper = gpioc.pc14.output().pull_type(PullNone);
-    let l = logging::SerialLogger::new(tx, beeper);
+    // MPU
+    // XXX: catch error result, print and panic
+    let mpu9250 = Mpu9250::marg(spi, ncs, &mut delay).unwrap();
+    let mut ahrs = ahrs::AHRS::create_calibrated(mpu9250,
+                                                 constants::NSAMPLES,
+                                                 &mut delay).unwrap();
+    write!(l, "Calibration done, biases {:?}\r\n", ahrs.ar_biases());
 
     // MOTORS:
     // pa0 -- pa3
@@ -166,18 +142,13 @@ fn main() -> ! {
         RX = Some(rx);
         ESC = Some(esc);
         MOTORS = Some(motor);
-        MPU = Some(mpu9250);
-        KALMAN = Some(kalman);
     }
-
-    let mut timer4 =
-        timer::tim4::Timer::new(device.TIM4, 8888.hz(), clocks, &mut rcc.apb1);
-
     let l = unsafe { extract(&mut L) };
-    write!(l, "init\r\n");
+
+    write!(l, "init done\r\n");
     l.blink();
 
-    delay.delay_ms(7000_u32);
+    delay.wc_delay_ms(5000);
     write!(l, "safety off\r\n");
 
     for i in 10..200 {
@@ -189,7 +160,7 @@ fn main() -> ! {
     }
     write!(l, "lift off\r\n");
 
-    delay.delay_ms(7000_u32);
+    delay.wc_delay_ms(5000);
 
     for i in 10..200 {
         motor_pa0.set_duty(200 - i);
@@ -206,17 +177,31 @@ fn main() -> ! {
     let hw = ((1 << prio_bits) - 1u8) << (8 - prio_bits);
     unsafe { nvic.set_priority(Interrupt::USART1_EXTI25, hw) };
     nvic.enable(Interrupt::USART1_EXTI25);
-    nvic.enable(Interrupt::EXTI0);
 
-    let mut c = -1;
+    // nvic.enable(Interrupt::EXTI0);
+    // let mut timer4 =
+    //     timer::tim4::Timer::new(device.TIM4, 8888.hz(), clocks, &mut
+    // rcc.apb1);
+
+    write!(l, "starting loop\r\n");
     loop {
-        timer4.start(constants::TICK_TIMEOUT);
-        while let Err(nb::Error::WouldBlock) = timer4.wait() {}
-        c = (c + 1) % constants::TICK_PERIOD;
-        if c == 0 {
-            write!(l, "tick\r\n");
-            nvic.set_pending(Interrupt::EXTI0);
+        match ahrs.read() {
+            Ok(q) => {
+                write!(l, "quat: {:?}\r\n", q);
+            },
+            Err(e) => {
+                write!(l, "ahrs error: {:?}\r\n", e);
+            },
         }
+
+        delay.delay_ms(250_u32);
+        // timer4.start(constants::TICK_TIMEOUT);
+        // while let Err(nb::Error::WouldBlock) = timer4.wait() {}
+        // c = (c + 1) % constants::TICK_PERIOD;
+        // if c == 0 {
+        //     write!(l, "tick\r\n");
+        //     nvic.set_pending(Interrupt::EXTI0);
+        // }
     }
 }
 
@@ -227,49 +212,39 @@ unsafe fn extract<T>(opt: &'static mut Option<T>) -> &'static mut T {
     }
 }
 
-fn print_gyro(l: &mut L, mpu: &mut MPU9250) {
-    match mpu.gyro() {
-        Ok(g) => {
-            write!(l, "gx: {}; gy: {}; gz: {}\r\n", g.x, g.y, g.z);
-        },
-        Err(m) => {
-            l.blink();
-            write!(l, "Gyro error: {:?}", m);
-        },
-    };
-}
+// fn print_gyro(l: &mut L, mpu: &mut MPU9250) {
+//     match mpu.gyro() {
+//         Ok(g) => {
+//             write!(l, "gx: {}; gy: {}; gz: {}\r\n", g.x, g.y, g.z);
+//         },
+//         Err(m) => {
+//             l.blink();
+//             write!(l, "Gyro error: {:?}", m);
+//         },
+//     };
+// }
 
-fn print_accel(l: &mut L, mpu: &mut MPU9250) {
-    match mpu.accel() {
-        Ok(a) => {
-            write!(l, "ax: {}; ay: {}; az: {}\r\n", a.x, a.y, a.z);
-        },
-        Err(m) => {
-            l.blink();
-            write!(l, "accel error: {:?}", m);
-        },
-    };
-}
+// fn print_accel(l: &mut L, mpu: &mut MPU9250) {
+//     match mpu.accel() {
+//         Ok(a) => {
+//             write!(l, "ax: {}; ay: {}; az: {}\r\n", a.x, a.y, a.z);
+//         },
+//         Err(m) => {
+//             l.blink();
+//             write!(l, "accel error: {:?}", m);
+//         },
+//     };
+// }
 
-fn print_kalman_estimate(l: &mut L, mpu: &mut MPU9250, kalman: &mut Kalman) {
-    let (ary, arz, _, gx) = mpu.aryz_t_gx().ok().unwrap();
-    let omega = (gx as f32) * K_G;
-    let angle = (ary as f32 * K_A).atan2(arz as f32 * K_A) * 180. / PI;
-    let estimate = kalman.update(angle, omega);
-    write!(l, "kalman estimate: {}\r\n", estimate);
-}
+// interrupt!(EXTI0, exti0);
+// fn exti0() {
+//     let mut l = unsafe { extract(&mut L) };
+//     let mut mpu = unsafe { extract(&mut MPU) };
 
-interrupt!(EXTI0, exti0);
-fn exti0() {
-    let mut l = unsafe { extract(&mut L) };
-    let mut mpu = unsafe { extract(&mut MPU) };
-    let mut kalman = unsafe { extract(&mut KALMAN) };
-
-    print_gyro(&mut l, &mut mpu);
-    print_accel(&mut l, &mut mpu);
-    print_kalman_estimate(&mut l, &mut mpu, &mut kalman);
-    write!(l, "\r\n");
-}
+//     print_gyro(&mut l, &mut mpu);
+//     print_accel(&mut l, &mut mpu);
+//     write!(l, "\r\n");
+// }
 
 interrupt!(USART1_EXTI25, usart1_exti25);
 fn usart1_exti25() {
@@ -307,7 +282,7 @@ exception!(HardFault, hard_fault);
 fn hard_fault(ef: &ExceptionFrame) -> ! {
     let l = unsafe { extract(&mut L) };
     l.blink();
-    write!(l, "hard fault as {:?}", ef);
+    write!(l, "hard fault at {:?}", ef);
     panic!("HardFault at {:#?}", ef);
 }
 
