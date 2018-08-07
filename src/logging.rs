@@ -28,9 +28,8 @@ impl<Wr, Op> SerialLogger<Wr, Op>
         self.beeper.set_low();
     }
 
-    fn write_one(&mut self, data: u8) {
-        let b = data.into();
-        match nb::block!(self.tx.write(b)) {
+    pub fn write_one(&mut self, data: u8) {
+        match nb::block!(self.tx.write(data)) {
             Ok(_) => {},
             Err(_) => self.blink(),
         }

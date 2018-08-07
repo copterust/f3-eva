@@ -33,7 +33,6 @@ use hal::prelude::*;
 use hal::serial::{self, Rx, Serial, Tx};
 use hal::spi::Spi;
 use hal::timer;
-// use libm::F32Ext;
 use mpu9250::Mpu9250;
 use rt::{entry, exception, ExceptionFrame};
 use stm32f30x::{interrupt, Interrupt};
@@ -263,7 +262,8 @@ fn usart1_exti25() {
             if b == constants::messages::MOTOR {
                 motor.set_rpm(1.0);
             }
-            write!(l, "{}", b);
+            // echo byte as is
+            l.write_one(b);
         },
         Err(nb::Error::Other(e)) => match e {
             serial::Error::Overrun => {
