@@ -9,11 +9,13 @@ pub mod stm32f30x {
 
     use super::Bootloader as BootloaderTrait;
 
-    pub struct Bootloader {}
+    pub struct Bootloader {
+        scb: cortex_m::peripheral::SCB,
+    }
 
     impl Bootloader {
-        pub fn new() -> Self {
-            Bootloader {}
+        pub fn new(scb: cortex_m::peripheral::SCB) -> Self {
+            Bootloader { scb, }
         }
     }
 
@@ -30,10 +32,7 @@ pub mod stm32f30x {
         }
 
         fn system_reset(&mut self) {
-            let scb = cortex_m::peripheral::SCB::ptr();
-            unsafe {
-                (*scb).aircr.write(0x05FA0000 | 0x04u32);
-            }
+            self.scb.system_reset();
         }
     }
 }

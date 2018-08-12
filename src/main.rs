@@ -63,7 +63,7 @@ entry!(main);
 fn main() -> ! {
     let device = hal::stm32f30x::Peripherals::take().unwrap();
     let core = cortex_m::Peripherals::take().unwrap();
-    let bootloader = bootloader::stm32f30x::Bootloader::new();
+    let bootloader = bootloader::stm32f30x::Bootloader::new(core.SCB);
 
     let mut rcc = device.RCC.constrain();
     let gpioa = device.GPIOA.split(&mut rcc.ahb);
@@ -237,14 +237,16 @@ fn usart1_exti25() {
             // echo byte as is
             l.write_one(b);
         },
-        Err(nb::Error::Other(e)) => match e {
-            serial::Error::Overrun => {
-                rx.clear_overrun_error();
-            },
-            _ => {
-                l.blink();
-                write!(l, "read error: {:?}", e);
-            },
+        Err(nb::Error::Other(e)) => {
+            match e {
+                serial::Error::Overrun => {
+                    rx.clear_overrun_error();
+                },
+                _ => {
+                    l.blink();
+                    write!(l, "read error: {:?}", e);
+                },
+            }
         },
         Err(nb::Error::WouldBlock) => {},
     };
