@@ -26,8 +26,7 @@ use core::fmt::Write;
 
 // external
 use hal::delay::Delay;
-use hal::gpio::{gpiob, gpioc};
-use hal::gpio::{AltFn, AF5, AF7};
+use hal::gpio::{self, AltFn, AF5, AF7};
 use hal::gpio::{LowSpeed, MediumSpeed, Output, PullNone, PullUp, PushPull};
 use hal::prelude::*;
 use hal::serial::{self, Rx, Serial, Tx};
@@ -39,18 +38,18 @@ use stm32f30x::interrupt;
 
 #[allow(unused)]
 type SPI = Spi<hal::stm32f30x::SPI1,
-               (gpiob::PB3<PullNone, AltFn<AF5, PushPull, LowSpeed>>,
-               gpiob::PB4<PullNone, AltFn<AF5, PushPull, LowSpeed>>,
-               gpiob::PB5<PullNone, AltFn<AF5, PushPull, LowSpeed>>)>;
+               (gpio::PB3<PullNone, AltFn<AF5, PushPull, LowSpeed>>,
+               gpio::PB4<PullNone, AltFn<AF5, PushPull, LowSpeed>>,
+               gpio::PB5<PullNone, AltFn<AF5, PushPull, LowSpeed>>)>;
 #[allow(unused)]
 type MPU9250 = mpu9250::Mpu9250<SPI,
-                                gpiob::PB9<PullNone,
-                                           Output<PushPull, LowSpeed>>,
+                                gpio::PB9<PullNone,
+                                          Output<PushPull, LowSpeed>>,
                                 mpu9250::Marg>;
 
 type L = logging::SerialLogger<Tx<hal::stm32f30x::USART1>,
-                               gpioc::PC14<PullNone,
-                                           Output<PushPull, LowSpeed>>>;
+                               gpio::PC14<PullNone,
+                                          Output<PushPull, LowSpeed>>>;
 
 static mut L: Option<L> = None;
 static mut RX: Option<Rx<hal::stm32f30x::USART1>> = None;
@@ -237,16 +236,12 @@ fn usart1_exti25() {
             // echo byte as is
             l.write_one(b);
         },
+        Err(nb::Error::Other(serial::Error::Overrun)) => {
+            rx.clear_overrun_error();
+        },
         Err(nb::Error::Other(e)) => {
-            match e {
-                serial::Error::Overrun => {
-                    rx.clear_overrun_error();
-                },
-                _ => {
-                    l.blink();
-                    write!(l, "read error: {:?}", e);
-                },
-            }
+            l.blink();
+            write!(l, "read error: {:?}", e);
         },
         Err(nb::Error::WouldBlock) => {},
     };
