@@ -35,7 +35,7 @@ use hal::spi::Spi;
 use hal::timer;
 use mpu9250::Mpu9250;
 use rt::{entry, exception, ExceptionFrame};
-use stm32f30x::{interrupt, Interrupt};
+use stm32f30x::interrupt;
 
 #[allow(unused)]
 type SPI = Spi<hal::stm32f30x::SPI1,
@@ -110,10 +110,13 @@ fn main() -> ! {
     // MPU
     // XXX: catch error result, print and panic
     let mpu9250 = Mpu9250::marg(spi, ncs, &mut delay).unwrap();
+    let loop_delay_ms: u32 = 50;
+    let filter_freq = loop_delay_ms as f32 / 1000.;
     let mut ahrs = ahrs::AHRS::create_calibrated(mpu9250,
+                                                 filter_freq,
                                                  constants::NSAMPLES,
                                                  &mut delay).unwrap();
-    write!(l, "Calibration done, biases {:?}\r\n", ahrs.ar_biases());
+    write!(l, "Calibration done, biases {:?}\r\n", ahrs.gyro_biases());
 
     // MOTORS:
     // pa0 -- pa3
@@ -170,12 +173,12 @@ fn main() -> ! {
     }
     write!(l, "take down\r\n");
 
-    unsafe { cortex_m::interrupt::enable() };
-    let mut nvic = core.NVIC;
-    let prio_bits = stm32f30x::NVIC_PRIO_BITS;
-    let hw = ((1 << prio_bits) - 1u8) << (8 - prio_bits);
-    unsafe { nvic.set_priority(Interrupt::USART1_EXTI25, hw) };
-    nvic.enable(Interrupt::USART1_EXTI25);
+    // unsafe { cortex_m::interrupt::enable() };
+    // let mut nvic = core.NVIC;
+    // let prio_bits = stm32f30x::NVIC_PRIO_BITS;
+    // let hw = ((1 << prio_bits) - 1u8) << (8 - prio_bits);
+    // unsafe { nvic.set_priority(Interrupt::USART1_EXTI25, hw) };
+    // nvic.enable(Interrupt::USART1_EXTI25);
 
     // nvic.enable(Interrupt::EXTI0);
     // let mut timer4 =
@@ -192,8 +195,7 @@ fn main() -> ! {
                 write!(l, "ahrs error: {:?}\r\n", e);
             },
         }
-
-        delay.delay_ms(250_u32);
+        // delay.delay_ms(loop_delay_ms);
         // timer4.start(constants::TICK_TIMEOUT);
         // while let Err(nb::Error::WouldBlock) = timer4.wait() {}
         // c = (c + 1) % constants::TICK_PERIOD;
@@ -211,38 +213,8 @@ unsafe fn extract<T>(opt: &'static mut Option<T>) -> &'static mut T {
     }
 }
 
-// fn print_gyro(l: &mut L, mpu: &mut MPU9250) {
-//     match mpu.gyro() {
-//         Ok(g) => {
-//             write!(l, "gx: {}; gy: {}; gz: {}\r\n", g.x, g.y, g.z);
-//         },
-//         Err(m) => {
-//             l.blink();
-//             write!(l, "Gyro error: {:?}", m);
-//         },
-//     };
-// }
-
-// fn print_accel(l: &mut L, mpu: &mut MPU9250) {
-//     match mpu.accel() {
-//         Ok(a) => {
-//             write!(l, "ax: {}; ay: {}; az: {}\r\n", a.x, a.y, a.z);
-//         },
-//         Err(m) => {
-//             l.blink();
-//             write!(l, "accel error: {:?}", m);
-//         },
-//     };
-// }
-
 // interrupt!(EXTI0, exti0);
 // fn exti0() {
-//     let mut l = unsafe { extract(&mut L) };
-//     let mut mpu = unsafe { extract(&mut MPU) };
-
-//     print_gyro(&mut l, &mut mpu);
-//     print_accel(&mut l, &mut mpu);
-//     write!(l, "\r\n");
 // }
 
 interrupt!(USART1_EXTI25, usart1_exti25);

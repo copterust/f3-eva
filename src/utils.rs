@@ -6,6 +6,7 @@ pub fn tick_delay(ticks: usize) {
     (0..ticks).for_each(|_| asm::nop());
 }
 
+// XXX: migrate to Duration?
 pub trait WallClockDelay: DelayMs<u32> {
     const MAX_STEP_DELAY: u32;
     fn wc_delay_ms(&mut self, ms: u32);

@@ -1,6 +1,6 @@
 use hal::time::{Bps, Hertz, MegaHertz};
 
-pub const BAUD_RATE: Bps = Bps(9600);
+pub const BAUD_RATE: Bps = Bps(115200);
 
 pub const TIM_TIMEOUT: MegaHertz = MegaHertz(1);
 #[allow(unused)]

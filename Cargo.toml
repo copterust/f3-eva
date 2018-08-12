@@ -27,7 +27,7 @@ package = "cortex-m-rt"
 
 [dependencies.madgwick]
 git = "https://github.com/little-arhat/madgwick"
-rev = "39ef6764dc230ff00ecc757c8c7130dc742bdb0c"
+rev = "30add4b09b4e3e8a0b4a7b04d8154c7751d0eaa0"
 
 [dependencies.mpu9250]
 # git = "https://github.com/japaric/mpu9250.git"
