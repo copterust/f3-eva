@@ -36,6 +36,17 @@ mmix 4 1 -1 0 -1
 mmix 5 1 1 0 1
 ```
 
+### Modular connector
+
+Three available USARTs are wired to a single connector.
+
+| 1 | GND      | GND  |
+|...|    ...   |  ... |
+| 4 | USART2RX | PA15 |
+| 5 | USART2TX | PA14 |
+|...|    ...   |  ... |
+| 8 | 3V3      | 3V3  |
+
 ### Components
 
 Onboard:
