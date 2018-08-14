@@ -108,7 +108,7 @@ fn main() -> ! {
                         &mut rcc.apb2);
     // MPU
     // XXX: catch error result, print and panic
-    let mpu9250 = Mpu9250::marg(spi, ncs, &mut delay).unwrap();
+    let mpu9250 = Mpu9250::marg_default(spi, ncs, &mut delay).unwrap();
     let loop_delay_ms: u32 = 50;
     let filter_freq = loop_delay_ms as f32 / 1000.;
     let mut ahrs = ahrs::AHRS::create_calibrated(mpu9250,
