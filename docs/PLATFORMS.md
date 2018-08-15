@@ -65,3 +65,14 @@ To be added:
 ## References
 
 * https://www.iforce2d.net/mixercalc/
+
+
+
+## MOTORS
+
+M1 -- pa0 -- rear right
+m2 -- pa1 -- front right
+m3 -- pa2 -- rear left
+m4 -- pa3 -- front left
+
+TTHRUS min -- 15.

@@ -33,6 +33,29 @@ impl<SPI, NCS> AHRS<SPI, NCS> {
     }
 }
 
+pub fn calibrate<SPI, NCS, MODE, E>(mpu: &mut Mpu9250<SPI, NCS, MODE>,
+                                    nsamples: u16,
+                                    delay: &mut impl DelayMs<u32>)
+                                    -> Result<F32x3, E>
+    where SPI: spi::Write<u8, Error = E> + spi::Transfer<u8, Error = E>,
+          NCS: OutputPin
+{
+    let mut gyro_bias_x = 0.;
+    let mut gyro_bias_y = 0.;
+    let mut gyro_bias_z = 0.;
+    for _ in 0..nsamples {
+        let ar = mpu.gyro()?;
+        gyro_bias_x += ar.x;
+        gyro_bias_y += ar.y;
+        gyro_bias_z += ar.z;
+        delay.delay_ms(5);
+    }
+    let n = nsamples as f32;
+    Ok(F32x3 { x: gyro_bias_x / n,
+               y: gyro_bias_y / n,
+               z: gyro_bias_z / n, })
+}
+
 impl<SPI, NCS, E> AHRS<SPI, NCS>
     where SPI: spi::Write<u8, Error = E> + spi::Transfer<u8, Error = E>,
           NCS: OutputPin
@@ -42,22 +65,7 @@ impl<SPI, NCS, E> AHRS<SPI, NCS>
                              nsamples: u16,
                              delay: &mut impl DelayMs<u32>)
                              -> Result<Self, E> {
-        // mpu.a_scale(mpu9250::FSScale::_01)?;
-        // mpu.g_scale(mpu9250::FSScale::_01)?;
-        let mut gyro_bias_x = 0.;
-        let mut gyro_bias_y = 0.;
-        let mut gyro_bias_z = 0.;
-        for _ in 0..nsamples {
-            let ar = mpu.gyro()?;
-            gyro_bias_x += ar.x;
-            gyro_bias_y += ar.y;
-            gyro_bias_z += ar.z;
-            delay.delay_ms(5);
-        }
-        let n = nsamples as f32;
-        let gyro_biases = F32x3 { x: gyro_bias_x / n,
-                                  y: gyro_bias_y / n,
-                                  z: gyro_bias_z / n, };
+        let gyro_biases = calibrate(&mut mpu, nsamples, delay)?;
 
         let marg = Marg::new(BETA, freq_sec);
 
