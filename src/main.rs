@@ -346,17 +346,15 @@ fn usart_exti25() {
     };
 }
 
-exception!(HardFault, hard_fault);
-fn hard_fault(ef: &ExceptionFrame) -> ! {
+exception!(HardFault, |ef| {
     let l = unsafe { extract(&mut L) };
     l.blink();
     write!(l, "hard fault at {:?}", ef);
     panic!("HardFault at {:#?}", ef);
-}
+});
 
-exception!(*, default_handler);
-fn default_handler(irqn: i16) {
+exception!(*, |irqn| {
     let l = unsafe { extract(&mut L) };
     write!(l, "Interrupt: {}", irqn);
     panic!("Unhandled exception (IRQn = {})", irqn);
-}
+});

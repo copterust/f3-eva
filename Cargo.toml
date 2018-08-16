@@ -22,7 +22,7 @@ stm32f30x = {version = "0.7.0", features = ["rt"]}
 mpu9250 = "0.2.4"
 
 [dependencies.rt]
-version = "0.5.1"
+version = "0.5.2"
 package = "cortex-m-rt"
 
 [dependencies.madgwick]
@@ -35,5 +35,5 @@ version = "0.2.1"
 package = "embedded-hal"
 
 [dependencies.hal]
-version = "0.6.1"
+version = "0.6.2"
 package = "alt-stm32f30x-hal"
