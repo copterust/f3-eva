@@ -10,6 +10,7 @@ matrix:
             - gcc-arm-none-eabi
 
 install:
+  - rustup update
   - rustup target add thumbv7em-none-eabi
 
 script:
