@@ -117,11 +117,9 @@ fn main() -> ! {
     // MPU
     // XXX: catch error result, print and panic
     let mut mpu9250 = Mpu9250::imu_default(spi, ncs, &mut delay).unwrap();
-    write!(l, "mpu ok\r\n");
-    mpu9250.sample_rate_divisor(4);
-    let gyro_biases =
-        ahrs::calibrate(&mut mpu9250, constants::NSAMPLES, &mut delay).unwrap();
-    write!(l, "Calibration done, biases {:?}\r\n", gyro_biases);
+    write!(l, "mpu ok, will proceed to calibration...\r\n");
+    mpu9250.calibrate_at_rest(&mut delay).unwrap();
+    write!(l, "Calibration done, biases are stored\r\n");
     let loop_delay_ms: u32 = 50;
     // let filter_freq = loop_delay_ms as f32 / 1000.;
     // let ahrs = ahrs::AHRS::create_calibrated(mpu9250,
@@ -201,12 +199,9 @@ fn main() -> ! {
     loop {
         match mpu9250.gyro() {
             Ok(g) => {
-                let corrected = mpu9250::F32x3 { x: g.x - gyro_biases.x,
-                                                 y: g.y - gyro_biases.y,
-                                                 z: g.z - gyro_biases.z, };
-                // let x_err = 0. - corrected.x;
-                let y_err = 0. - corrected.y;
-                // let z_err = 0. - corrected.z;
+                // let x_err = 0. - g.x;
+                let y_err = 0. - g.y;
+                // let z_err = 0. - g.z;
                 let k = koef();
                 let x_corr = 0.;
                 let y_corr = y_err * k;
@@ -326,22 +321,20 @@ fn usart_exti25() {
             }
         },
         Err(nb::Error::WouldBlock) => {},
-        Err(nb::Error::Other(e)) => {
-            match e {
-                serial::Error::Overrun => {
-                    rx.clear_overrun_error();
-                },
-                serial::Error::Framing => {
-                    rx.clear_framing_error();
-                },
-                serial::Error::Noise => {
-                    rx.clear_noise_error();
-                },
-                _ => {
-                    l.blink();
-                    write!(l, "read error: {:?}", e);
-                },
-            }
+        Err(nb::Error::Other(e)) => match e {
+            serial::Error::Overrun => {
+                rx.clear_overrun_error();
+            },
+            serial::Error::Framing => {
+                rx.clear_framing_error();
+            },
+            serial::Error::Noise => {
+                rx.clear_noise_error();
+            },
+            _ => {
+                l.blink();
+                write!(l, "read error: {:?}", e);
+            },
         },
     };
 }

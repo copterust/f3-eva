@@ -24,54 +24,18 @@ const BETA: f32 = 1e-3;
 pub struct AHRS<SPI, NCS> {
     mpu: Mpu9250<SPI, NCS, mpu9250::Marg>,
     marg: madgwick::Marg,
-    gyro_biases: F32x3,
-}
-
-impl<SPI, NCS> AHRS<SPI, NCS> {
-    pub fn gyro_biases(&self) -> F32x3 {
-        self.gyro_biases
-    }
-}
-
-pub fn calibrate<SPI, NCS, MODE, E>(mpu: &mut Mpu9250<SPI, NCS, MODE>,
-                                    nsamples: u16,
-                                    delay: &mut impl DelayMs<u32>)
-                                    -> Result<F32x3, E>
-    where SPI: spi::Write<u8, Error = E> + spi::Transfer<u8, Error = E>,
-          NCS: OutputPin
-{
-    let mut gyro_bias_x = 0.;
-    let mut gyro_bias_y = 0.;
-    let mut gyro_bias_z = 0.;
-    for _ in 0..nsamples {
-        let ar = mpu.gyro()?;
-        gyro_bias_x += ar.x;
-        gyro_bias_y += ar.y;
-        gyro_bias_z += ar.z;
-        delay.delay_ms(5);
-    }
-    let n = nsamples as f32;
-    Ok(F32x3 { x: gyro_bias_x / n,
-               y: gyro_bias_y / n,
-               z: gyro_bias_z / n, })
 }
 
 impl<SPI, NCS, E> AHRS<SPI, NCS>
     where SPI: spi::Write<u8, Error = E> + spi::Transfer<u8, Error = E>,
           NCS: OutputPin
 {
-    pub fn create_calibrated(mut mpu: Mpu9250<SPI, NCS, mpu9250::Marg>,
-                             freq_sec: f32,
-                             nsamples: u16,
-                             delay: &mut impl DelayMs<u32>)
-                             -> Result<Self, E> {
-        let gyro_biases = calibrate(&mut mpu, nsamples, delay)?;
-
+    pub fn new(mut mpu: Mpu9250<SPI, NCS, mpu9250::Marg>,
+               freq_sec: f32)
+               -> Self {
         let marg = Marg::new(BETA, freq_sec);
-
-        Ok(AHRS { mpu,
-                  marg,
-                  gyro_biases, })
+        AHRS { mpu,
+               marg, }
     }
 
     pub fn read(&mut self) -> Result<madgwick::Quaternion, E> {
@@ -84,20 +48,15 @@ impl<SPI, NCS, E> AHRS<SPI, NCS>
         let mag = F32x3 { x: mag.y,
                           y: -mag.x,
                           z: mag.z, };
-
-        // TODO: Add core::ops::* impls to madgwick repo
-        let gyro_x = gyro.x - self.gyro_biases.x;
-        let gyro_y = gyro.y - self.gyro_biases.y;
-        let gyro_z = gyro.z - self.gyro_biases.z;
-        let gyro = F32x3 { x: gyro_x,
-                           y: gyro_y,
-                           z: gyro_z, };
-
         // Fix the X Y Z components of the accelerometer so they match the gyro
         // axes
         let accel = F32x3 { x: accel.y,
                             y: -accel.x,
                             z: accel.z, };
+        // Convert one Vec to another Vec, ffs
+        let gyro = F32x3 { x: gyro.x,
+                           y: gyro.y,
+                           z: gyro.z, };
         let quat = self.marg.update(mag, gyro, accel);
         Ok(quat)
     }
