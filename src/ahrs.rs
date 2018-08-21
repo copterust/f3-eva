@@ -1,7 +1,7 @@
 use ehal::blocking::delay::DelayMs;
 use ehal::blocking::spi;
 use ehal::digital::OutputPin;
-use madgwick::{F32x3, Marg};
+use madgwick::{Madgwick, Quaternion, Vector3};
 use mpu9250::Mpu9250;
 
 // Magnetometer calibration parameters
@@ -21,9 +21,10 @@ use mpu9250::Mpu9250;
 // GyroMeasError of 2.7 degrees/s) was found to give optimal accuracy.
 const BETA: f32 = 1e-3;
 
+// TODO: make generic over Imu/Marg
 pub struct AHRS<SPI, NCS> {
     mpu: Mpu9250<SPI, NCS, mpu9250::Marg>,
-    marg: madgwick::Marg,
+    madgwick: Madgwick<madgwick::Marg>,
 }
 
 impl<SPI, NCS, E> AHRS<SPI, NCS>
@@ -33,31 +34,23 @@ impl<SPI, NCS, E> AHRS<SPI, NCS>
     pub fn new(mut mpu: Mpu9250<SPI, NCS, mpu9250::Marg>,
                freq_sec: f32)
                -> Self {
-        let marg = Marg::new(BETA, freq_sec);
+        let madgwick = Madgwick::marg(BETA, freq_sec);
         AHRS { mpu,
-               marg, }
+               madgwick, }
     }
 
-    pub fn read(&mut self) -> Result<madgwick::Quaternion, E> {
+    pub fn read(&mut self) -> Result<Quaternion<f32>, E> {
         let mag = self.mpu.mag()?;
         let accel = self.mpu.accel()?;
         let gyro = self.mpu.gyro()?;
 
         // Fix the X Y Z components of the magnetometer so they match the gyro
         // axes
-        let mag = F32x3 { x: mag.y,
-                          y: -mag.x,
-                          z: mag.z, };
+        let mag = Vector3::new(mag.y, -mag.x, mag.z);
         // Fix the X Y Z components of the accelerometer so they match the gyro
         // axes
-        let accel = F32x3 { x: accel.y,
-                            y: -accel.x,
-                            z: accel.z, };
-        // Convert one Vec to another Vec, ffs
-        let gyro = F32x3 { x: gyro.x,
-                           y: gyro.y,
-                           z: gyro.z, };
-        let quat = self.marg.update(mag, gyro, accel);
+        let accel = Vector3::new(accel.y, -accel.x, accel.z);
+        let quat = self.madgwick.update(mag, gyro, accel);
         Ok(quat)
     }
 }
