@@ -23,34 +23,35 @@ const BETA: f32 = 1e-3;
 
 // TODO: make generic over Imu/Marg
 pub struct AHRS<SPI, NCS> {
-    mpu: Mpu9250<SPI, NCS, mpu9250::Marg>,
-    madgwick: Madgwick<madgwick::Marg>,
+    mpu: Mpu9250<SPI, NCS, mpu9250::Imu>,
+    madgwick: Madgwick<madgwick::Imu>,
 }
 
 impl<SPI, NCS, E> AHRS<SPI, NCS>
     where SPI: spi::Write<u8, Error = E> + spi::Transfer<u8, Error = E>,
           NCS: OutputPin
 {
-    pub fn new(mut mpu: Mpu9250<SPI, NCS, mpu9250::Marg>,
+    pub fn new(mut mpu: Mpu9250<SPI, NCS, mpu9250::Imu>,
                freq_sec: f32)
                -> Self {
-        let madgwick = Madgwick::marg(BETA, freq_sec);
+        let madgwick = Madgwick::imu(BETA, freq_sec);
         AHRS { mpu,
                madgwick, }
     }
 
     pub fn read(&mut self) -> Result<Quaternion<f32>, E> {
-        let mag = self.mpu.mag()?;
-        let accel = self.mpu.accel()?;
-        let gyro = self.mpu.gyro()?;
+        let meas = self.mpu.all()?;
+        // let mag = self.mpu.mag()?;
+        let accel = meas.accel;
+        let gyro = meas.gyro;
 
         // Fix the X Y Z components of the magnetometer so they match the gyro
         // axes
-        let mag = Vector3::new(mag.y, -mag.x, mag.z);
+        // let mag = Vector3::new(mag.y, -mag.x, mag.z);
         // Fix the X Y Z components of the accelerometer so they match the gyro
         // axes
         let accel = Vector3::new(accel.y, -accel.x, accel.z);
-        let quat = self.madgwick.update(mag, gyro, accel);
+        let quat = self.madgwick.update(gyro, accel);
         Ok(quat)
     }
 }

@@ -33,7 +33,9 @@ use hal::prelude::*;
 use hal::serial::{self, Rx, Serial, Tx};
 use hal::spi::Spi;
 use hal::timer;
+use libm::{asinf, atan2f, fabsf};
 use mpu9250::Mpu9250;
+use nalgebra::geometry::Quaternion;
 use rt::{entry, exception, ExceptionFrame};
 use stm32f30x::{interrupt, Interrupt};
 
@@ -58,12 +60,12 @@ static mut BOOTLOADER: Option<bootloader::stm32f30x::Bootloader> = None;
 static mut ESC: Option<ESC> = None;
 static mut MOTORS: Option<CorelessMotor> = None;
 
-static mut KOEFF: f32 = 10.;
-static mut TOTAL_THRUST: f32 = 0.;
-static mut CTL_STEP: f32 = 10.;
+static mut P_KOEFF: f32 = 1000.;
+static mut I_KOEFF: f32 = 0.;
+static mut D_KOEFF: f32 = 0.;
 
-const X_THRUST: f32 = 0.;
-const Z_THRUST: f32 = 0.;
+static mut TOTAL_THRUST: f32 = 0.;
+static mut CTL_STEP: f32 = 100.;
 
 entry!(main);
 fn main() -> ! {
@@ -80,11 +82,13 @@ fn main() -> ! {
     let clocks = rcc.cfgr
                     .sysclk(64.mhz())
                     .pclk1(32.mhz())
-                    .pclk2(36.mhz())
+                    .pclk2(32.mhz())
                     .freeze(&mut flash.acr);
 
     let txpin = gpioa.pa14.alternating(AF7);
     let rxpin = gpioa.pa15.alternating(AF7);
+    // let txpin = gpioa.pa9.alternating(AF7);
+    // let rxpin = gpioa.pa10.alternating(AF7);
     let mut serial = Serial::usart2(device.USART2,
                                     (txpin, rxpin),
                                     constants::BAUD_RATE,
@@ -100,7 +104,6 @@ fn main() -> ! {
     write!(l, "Logger ok\r\n");
     // XXX: split delay and pass to logger as well?
     let mut delay = Delay::new(core.SYST, clocks);
-    delay.wc_delay_ms(5000);
 
     // SPI1
     let ncs = gpiob.pb9.output().push_pull();
@@ -118,21 +121,17 @@ fn main() -> ! {
     // XXX: catch error result, print and panic
     let mut mpu9250 = Mpu9250::imu_default(spi, ncs, &mut delay).unwrap();
     write!(l, "mpu ok, will proceed to calibration...\r\n");
-    mpu9250.calibrate_at_rest(&mut delay).unwrap();
+    // mpu9250.calibrate_at_rest(&mut delay).unwrap();
     write!(l, "Calibration done, biases are stored\r\n");
-    let loop_delay_ms: u32 = 50;
-    // let filter_freq = loop_delay_ms as f32 / 1000.;
-    // let ahrs = ahrs::AHRS::create_calibrated(mpu9250,
-    //                                          filter_freq,
-    //                                          constants::NSAMPLES,
-    //                                          &mut delay).unwrap();
+    // let filter_freq = 4. / 1000.;
+    // let mut ahrs = ahrs::AHRS::new(mpu9250, filter_freq);
     // write!(l, "Calibration done, biases {:?}\r\n", ahrs.gyro_biases());
 
     // MOTORS:
     // pa0 -- pa3
     let (ch1, ch2, ch3, ch4, mut timer2) =
         timer::tim2::Timer::new(device.TIM2,
-                                constants::TIM_TIMEOUT,
+                                constants::TIM_FREQ,
                                 clocks,
                                 &mut rcc.apb1).take_all();
     let mut m_rear_right = gpioa.pa0.pull_type(PullUp).to_pwm(ch1, MediumSpeed);
@@ -162,49 +161,48 @@ fn main() -> ! {
 
     write!(l, "init done\r\n");
     l.blink();
-    // delay.wc_delay_ms(5000);
-    write!(l, "safety off\r\n");
-    // for i in 10..200 {
-    //     motor_pa0.set_duty(i);
-    //     motor_pa1.set_duty(i);
-    //     motor_pa2.set_duty(i);
-    //     motor_pa3.set_duty(i);
-    //     utils::tick_delay(25000);
-    // }
-    write!(l, "lift off\r\n");
-    // delay.wc_delay_ms(5000);
-    // for i in 10..200 {
-    //     motor_pa0.set_duty(200 - i);
-    //     motor_pa1.set_duty(200 - i);
-    //     motor_pa2.set_duty(200 - i);
-    //     motor_pa3.set_duty(200 - i);
-    //     utils::tick_delay(25000);
-    // }
-    write!(l, "take down\r\n");
-
     unsafe { cortex_m::interrupt::enable() };
     let mut nvic = core.NVIC;
-    let prio_bits = stm32f30x::NVIC_PRIO_BITS;
-    let hw = ((1 << prio_bits) - 1u8) << (8 - prio_bits);
-    unsafe { nvic.set_priority(Interrupt::USART2_EXTI26, hw) };
     nvic.enable(Interrupt::USART2_EXTI26);
+    // nvic.enable(Interrupt::USART1_EXTI25);
 
     // nvic.enable(Interrupt::EXTI0);
     // let mut timer4 =
     //     timer::tim4::Timer::new(device.TIM4, 8888.hz(), clocks, &mut
     // rcc.apb1);
-
+    delay.wc_delay_ms(2000);
     write!(l, "starting loop\r\n");
-
+    let max_duty = m_rear_right.get_max_duty();
+    write!(l, "max duty (arr): {}\r\n", max_duty);
     loop {
-        match mpu9250.gyro() {
-            Ok(g) => {
+        // match ahrs.read() {
+        //     Ok(q) => {
+        //         write!(l, "w={};i={};j={};k={}\r\n", q.w, q.i, q.j, q.k);
+        //         let (roll, yaw, pitch) = to_euler(l, &q);
+        //         write!(l, "roll={},yaw={},pitch={}\r\n", roll, yaw, pitch);
+        //     },
+        //     Err(e) => {
+        //         write!(l, "AHRS error: {:?}\r\n", e);
+        //     },
+        // }
+        let mut delta = 0.;
+        let mut prev_err = 0.;
+        match mpu9250.all() {
+            Ok(meas) => {
+                let g = meas.gyro;
+                let accel = meas.accel;
                 // let x_err = 0. - g.x;
                 let y_err = 0. - g.y;
                 // let z_err = 0. - g.z;
-                let k = koef();
+                let pk = pkoef();
+                let ik = ikoef();
+                let dk = dkoef();
+
+                let i_comp = 0.;
+                delta = y_err - prev_err;
+                let y_corr = y_err * pk + i_comp * ik + dk * delta;
+                prev_err = y_err;
                 let x_corr = 0.;
-                let y_corr = y_err * k;
                 let z_corr = 0.;
                 let t = total_thrust();
                 let front_left = t + x_corr + y_corr - z_corr;
@@ -220,23 +218,6 @@ fn main() -> ! {
                 write!(l, "ahrs error: {:?}\r\n", e);
             },
         }
-
-        // match ahrs.read() {
-        //     Ok(q) => {
-        //         write!(l, "quat: {:?}\r\n", q);
-        //     },
-        //     Err(e) => {
-        //         write!(l, "ahrs error: {:?}\r\n", e);
-        //     },
-        // }
-        // delay.delay_ms(loop_delay_ms);
-        // timer4.start(constants::TICK_TIMEOUT);
-        // while let Err(nb::Error::WouldBlock) = timer4.wait() {}
-        // c = (c + 1) % constants::TICK_PERIOD;
-        // if c == 0 {
-        //     write!(l, "tick\r\n");
-        //     nvic.set_pending(Interrupt::EXTI0);
-        // }
     }
 }
 
@@ -255,12 +236,21 @@ fn ctl_step() -> f32 {
     unsafe { CTL_STEP }
 }
 
-fn koef() -> f32 {
-    unsafe { KOEFF }
+fn pkoef() -> f32 {
+    unsafe { P_KOEFF }
 }
 
-interrupt!(USART2_EXTI26, usart_exti25);
-fn usart_exti25() {
+fn ikoef() -> f32 {
+    unsafe { I_KOEFF }
+}
+
+fn dkoef() -> f32 {
+    unsafe { D_KOEFF }
+}
+
+interrupt!(USART2_EXTI26, usart_int);
+// interrupt!(USART1_EXTI25, usart_int);
+fn usart_int() {
     let rx = unsafe { extract(&mut RX) };
     let l = unsafe { extract(&mut L) };
     let bootloader = unsafe { extract(&mut BOOTLOADER) };
@@ -281,43 +271,34 @@ fn usart_exti25() {
                 unsafe {
                     if (TOTAL_THRUST > 0.0) {
                         TOTAL_THRUST -= ctl_step();
+                        if (TOTAL_THRUST < 0.0) {
+                            TOTAL_THRUST = 0.0;
+                        }
                     }
                 }
                 t = !t;
             } else if b == constants::messages::PLUS_KY {
                 unsafe {
-                    KOEFF += ctl_step();
+                    D_KOEFF += (ctl_step() / 4.);
                 }
                 t = !t;
             } else if b == constants::messages::MINUS_KY {
                 unsafe {
-                    if (KOEFF > 0.0) {
-                        KOEFF -= ctl_step();
-                    }
-                }
-                t = !t;
-            } else if b == constants::messages::CTL_1 {
-                unsafe {
-                    CTL_STEP = 1.0;
-                }
-                t = !t;
-            } else if b == constants::messages::CTL_5 {
-                unsafe {
-                    CTL_STEP = 5.0;
+                    D_KOEFF -= (ctl_step() / 4.);
                 }
                 t = !t;
             }
 
             if t {
                 write!(l,
-                       "TTHRUST: {:?}; KY: {:?}; C: {:?}\r\n",
+                       "TTHRUST: {:?}; DK: {:?}; C: {:?}\r\n",
                        total_thrust(),
-                       koef(),
+                       dkoef(),
                        ctl_step());
                 t = false;
             } else {
                 // echo byte as is
-                l.write_one(b);
+                l.write_char(b as char);
             }
         },
         Err(nb::Error::WouldBlock) => {},
@@ -333,21 +314,43 @@ fn usart_exti25() {
             },
             _ => {
                 l.blink();
-                write!(l, "read error: {:?}", e);
+                write!(l, "read error: {:?}\r\n", e);
             },
         },
     };
 }
 
+fn to_euler(l: &mut L, q: &Quaternion<f32>) -> (f32, f32, f32) {
+    let sqw = q.w * q.w;
+    let sqx = q.i * q.i;
+    let sqy = q.j * q.j;
+    let sqz = q.k * q.k;
+    let pitch = asinf(-2. * (q.i * q.k - q.j * q.w));
+    let m = q.i * q.j + q.k * q.w;
+    let mut roll;
+    let mut yaw;
+    if fabsf(m - 0.5) < 1e-8 {
+        roll = 0.;
+        yaw = 2. * atan2f(q.i, q.w);
+    } else if fabsf(m + 0.5) < 1e-8 {
+        roll = -2. * atan2f(q.i, q.w);
+        yaw = 0.;
+    } else {
+        roll = atan2f(2. * (q.i * q.j + q.k * q.w), sqx - sqy - sqz + sqw);
+        yaw = atan2f(2. * (q.j * q.k + q.i * q.w), -sqx - sqy + sqz + sqw);
+    }
+    (roll, pitch, yaw)
+}
+
 exception!(HardFault, |ef| {
     let l = unsafe { extract(&mut L) };
     l.blink();
-    write!(l, "hard fault at {:?}", ef);
+    write!(l, "hard fault at {:?}\r\n", ef);
     panic!("HardFault at {:#?}", ef);
 });
 
 exception!(*, |irqn| {
     let l = unsafe { extract(&mut L) };
-    write!(l, "Interrupt: {}", irqn);
+    write!(l, "Interrupt: {}\r\n", irqn);
     panic!("Unhandled exception (IRQn = {})", irqn);
 });

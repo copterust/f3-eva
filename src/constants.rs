@@ -1,8 +1,8 @@
-use hal::time::{Bps, Hertz, MegaHertz};
+use hal::time::{Bps, Hertz, KiloHertz};
 
 pub const BAUD_RATE: Bps = Bps(115200);
 
-pub const TIM_TIMEOUT: MegaHertz = MegaHertz(1);
+pub const TIM_FREQ: KiloHertz = KiloHertz(32);
 #[allow(unused)]
 pub const TICK_TIMEOUT: Hertz = Hertz(1);
 #[allow(unused)]
