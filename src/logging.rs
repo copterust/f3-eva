@@ -24,25 +24,8 @@ impl<Wr, Op> SerialLogger<Wr, Op>
     pub fn blink(&mut self) {
         self.beeper.set_high();
         // XXX: use Delay and ms
-        utils::tick_delay(100000);
+        utils::tick_delay(32000);
         self.beeper.set_low();
-    }
-
-    pub fn write_one(&mut self, data: u8) {
-        match nb::block!(self.tx.write(data)) {
-            Ok(_) => {},
-            Err(_) => self.blink(),
-        }
-    }
-
-    fn write_many(&mut self, data: &[u8]) {
-        for b in data.iter() {
-            self.write_one(b.clone());
-        }
-        match self.tx.flush() {
-            Ok(_) => {},
-            Err(_) => self.blink(),
-        };
     }
 }
 
@@ -51,12 +34,24 @@ impl<Wr, Op> fmt::Write for SerialLogger<Wr, Op>
           Op: ehal::digital::OutputPin
 {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.write_many(s.as_bytes());
+        for c in s.chars() {
+            match self.write_char(c) {
+                Ok(_) => {},
+                Err(_) => {},
+            }
+        }
+        match self.tx.flush() {
+            Ok(_) => {},
+            Err(_) => {},
+        };
         Ok(())
     }
 
     fn write_char(&mut self, s: char) -> fmt::Result {
-        self.write_one(s as u8);
+        match nb::block!(self.tx.write(s as u8)) {
+            Ok(_) => {},
+            Err(_) => {},
+        }
         Ok(())
     }
 }
