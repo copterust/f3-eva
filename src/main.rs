@@ -33,22 +33,13 @@ use hal::prelude::*;
 use hal::serial::{self, Rx, Serial, Tx};
 use hal::spi::Spi;
 use hal::timer;
-use libm::{asinf, atan2f, fabsf};
+use libm::F32Ext;
 use mpu9250::Mpu9250;
 use nalgebra::geometry::Quaternion;
 use rt::{entry, exception, ExceptionFrame};
 use stm32f30x::{interrupt, Interrupt};
 
 type USART = hal::stm32f30x::USART2;
-
-type SPI = Spi<hal::stm32f30x::SPI1,
-               (gpio::PB3<PullNone, AltFn<AF5, PushPull, LowSpeed>>,
-               gpio::PB4<PullNone, AltFn<AF5, PushPull, LowSpeed>>,
-               gpio::PB5<PullNone, AltFn<AF5, PushPull, LowSpeed>>)>;
-type MPU9250 = mpu9250::Mpu9250<SPI,
-                                gpio::PB9<PullNone,
-                                          Output<PushPull, LowSpeed>>,
-                                mpu9250::Marg>;
 
 type L = logging::SerialLogger<Tx<USART>,
                                gpio::PC14<PullNone,
@@ -85,15 +76,11 @@ fn main() -> ! {
                     .pclk2(32.mhz())
                     .freeze(&mut flash.acr);
 
-    let txpin = gpioa.pa14.alternating(AF7);
-    let rxpin = gpioa.pa15.alternating(AF7);
     // let txpin = gpioa.pa9.alternating(AF7);
     // let rxpin = gpioa.pa10.alternating(AF7);
-    let mut serial = Serial::usart2(device.USART2,
-                                    (txpin, rxpin),
-                                    constants::BAUD_RATE,
-                                    clocks,
-                                    &mut rcc.apb1);
+    let mut serial =
+        device.USART2
+              .serial((gpioa.pa14, gpioa.pa15), constants::BAUD_RATE, clocks);
     serial.listen(serial::Event::Rxne);
     let (mut tx, rx) = serial.split();
     // COBS frame
@@ -325,19 +312,22 @@ fn to_euler(l: &mut L, q: &Quaternion<f32>) -> (f32, f32, f32) {
     let sqx = q.i * q.i;
     let sqy = q.j * q.j;
     let sqz = q.k * q.k;
-    let pitch = asinf(-2. * (q.i * q.k - q.j * q.w));
+    let pitch_inp = -2. * (q.i * q.k - q.j * q.w);
+    let pitch = pitch_inp.asin();
     let m = q.i * q.j + q.k * q.w;
     let mut roll;
     let mut yaw;
-    if fabsf(m - 0.5) < 1e-8 {
+    if (m - 0.5).abs() < 1e-8 {
         roll = 0.;
-        yaw = 2. * atan2f(q.i, q.w);
-    } else if fabsf(m + 0.5) < 1e-8 {
-        roll = -2. * atan2f(q.i, q.w);
+        yaw = 2. * q.i.atan2(q.w);
+    } else if (m + 0.5).abs() < 1e-8 {
+        roll = -2. * q.i.atan2(q.w);
         yaw = 0.;
     } else {
-        roll = atan2f(2. * (q.i * q.j + q.k * q.w), sqx - sqy - sqz + sqw);
-        yaw = atan2f(2. * (q.j * q.k + q.i * q.w), -sqx - sqy + sqz + sqw);
+        let roll_inp = 2. * (q.i * q.j + q.k * q.w);
+        roll = roll_inp.atan2(sqx - sqy - sqz + sqw);
+        let yaw_inp = 2. * (q.j * q.k + q.i * q.w);
+        yaw = yaw_inp.atan2(-sqx - sqy + sqz + sqw);
     }
     (roll, pitch, yaw)
 }
