@@ -3,32 +3,8 @@ use hal::prelude::*;
 use hal::serial::Serial;
 use hal::stm32f30x;
 
-// pub trait UsartInit<GPIO> {
-//     type Output;
-//     fn toto(device: stm32f30x::Peripherals,
-//             gpio: GPIO,
-//             baud_rate: hal::time::Bps,
-//             clocks: hal::rcc::Clocks)
-//             -> (stm32f30x::Peripherals, GPIO, Self::Output);
-// }
+// Initialization support
 
-// impl UsartInit for (stm32f30x::USART1,
-//                     stm32f30x::Peripherals,
-//                     Gpioa) {
-//     type Output = Serial<stm32f30x::USART1,
-//                          (PA9<PullNone, AltFn<AF7, PushPull, HighSpeed>>,
-//                          PA10<PullNone, AltFn<AF7, PushPull, HighSpeed>>)>;
-
-//     fn toto(baud_rate: hal::time::Bps,
-//             clocks: hal::rcc::Clocks)
-//             -> (stm32f30x::Peripherals, Gpioa, Self::Output) {
-//         let us = device.USART1;
-//         let tx = gpio.pa9;
-//         let rx = gpio.pa10;
-//         let ser = us.serial((tx, rx), baud_rate, clocks);
-//         (device, gpio, ser)
-//     }
-// }
 macro_rules! _init_serial {
     (USART1,
      $device:ident,
@@ -62,22 +38,12 @@ macro_rules! use_serial {
         _inter!($u, $int);
         macro_rules! init_serial {
             ($device:ident,
-                                     $gp:ident,
-                                     $br: expr,
-                                     $clocks: expr
-                                    ) => {
+                     $gp:ident,
+                     $br: expr,
+                     $clocks: expr
+                    ) => {
                 _init_serial!($u, $device, $gp, $br, $clocks)
             };
         }
     };
 }
-
-// macro_rules! init_serial {
-//     ($usart:ty,
-//      $device:expr,
-//      $gpio:expr,
-//      $br: expr,
-//      $clocks: expr) => {
-//         <$usart as UsartInit>::toto($device, $gpio, $br, $clocks)
-//     };
-// }
