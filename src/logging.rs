@@ -17,8 +17,7 @@ impl<Wr, Op> SerialLogger<Wr, Op>
           Op: ehal::digital::OutputPin
 {
     pub fn new(tx: Wr, beeper: Op) -> Self {
-        Self { tx,
-               beeper, }
+        Self { tx, beeper }
     }
 
     pub fn blink(&mut self) {

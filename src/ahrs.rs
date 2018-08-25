@@ -35,8 +35,7 @@ impl<SPI, NCS, E> AHRS<SPI, NCS>
                freq_sec: f32)
                -> Self {
         let madgwick = Madgwick::imu(BETA, freq_sec);
-        AHRS { mpu,
-               madgwick, }
+        AHRS { mpu, madgwick }
     }
 
     pub fn read(&mut self) -> Result<Quaternion<f32>, E> {

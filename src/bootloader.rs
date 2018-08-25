@@ -15,7 +15,7 @@ pub mod stm32f30x {
 
     impl Bootloader {
         pub fn new(scb: cortex_m::peripheral::SCB) -> Self {
-            Bootloader { scb, }
+            Bootloader { scb }
         }
     }
 
