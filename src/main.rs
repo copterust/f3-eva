@@ -40,17 +40,11 @@ use libm::F32Ext;
 use mpu9250::Mpu9250;
 use nalgebra::geometry::Quaternion;
 use rt::{entry, exception, ExceptionFrame};
-// conditional support
-use cfg_if::cfg_if;
 
-// usart1 is default, so should be last
-cfg_if! {
-    if #[cfg(feature = "usart2")] {
-        use_serial!(USART2, usart_int);
-    } else if #[cfg(feature = "usart1")] {
-        use_serial!(USART1, usart_int);
-    }
-}
+#[cfg(not(any(feature = "usart2")))]
+use_serial!(USART1, usart_int);
+#[cfg(feature = "usart2")]
+use_serial!(USART2, usart_int);
 
 type L = logging::SerialLogger<Tx<USART>,
                                gpio::PC14<PullNone,
