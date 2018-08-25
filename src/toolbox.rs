@@ -31,6 +31,7 @@ macro_rules! _inter {
     };
 }
 
+#[cfg_attr(rustfmt, rustfmt_skip)]
 macro_rules! use_serial {
     ($u: ident, $int: path
     ) => {
@@ -38,10 +39,10 @@ macro_rules! use_serial {
         _inter!($u, $int);
         macro_rules! init_serial {
             ($device:ident,
-                     $gp:ident,
-                     $br: expr,
-                     $clocks: expr
-                    ) => {
+             $gp:ident,
+             $br: expr,
+             $clocks: expr
+            ) => {
                 _init_serial!($u, $device, $gp, $br, $clocks)
             };
         }
