@@ -96,15 +96,13 @@ fn main() -> ! {
 
     // SPI1
     let ncs = gpiob.pb9.output().push_pull();
-    let scl_sck = gpiob.pb3.alternating(AF5);
-    let sda_sdi_mosi = gpiob.pb5.alternating(AF5);
-    let ad0_sdo_miso = gpiob.pb4.alternating(AF5);
-    let spi = Spi::spi1(device.SPI1,
-                        (scl_sck, ad0_sdo_miso, sda_sdi_mosi),
-                        mpu9250::MODE,
-                        1.mhz(),
-                        clocks,
-                        &mut rcc.apb2);
+    let scl_sck = gpiob.pb3;
+    let sda_sdi_mosi = gpiob.pb5;
+    let ad0_sdo_miso = gpiob.pb4;
+    let spi = device.SPI1.spi((scl_sck, ad0_sdo_miso, sda_sdi_mosi),
+                              mpu9250::MODE,
+                              1.mhz(),
+                              clocks);
     write!(l, "spi ok\r\n");
     // MPU
     // XXX: catch error result, print and panic
@@ -284,22 +282,20 @@ fn usart_int() {
             }
         },
         Err(nb::Error::WouldBlock) => {},
-        Err(nb::Error::Other(e)) => {
-            match e {
-                serial::Error::Overrun => {
-                    rx.clear_overrun_error();
-                },
-                serial::Error::Framing => {
-                    rx.clear_framing_error();
-                },
-                serial::Error::Noise => {
-                    rx.clear_noise_error();
-                },
-                _ => {
-                    l.blink();
-                    write!(l, "read error: {:?}\r\n", e);
-                },
-            }
+        Err(nb::Error::Other(e)) => match e {
+            serial::Error::Overrun => {
+                rx.clear_overrun_error();
+            },
+            serial::Error::Framing => {
+                rx.clear_framing_error();
+            },
+            serial::Error::Noise => {
+                rx.clear_noise_error();
+            },
+            _ => {
+                l.blink();
+                write!(l, "read error: {:?}\r\n", e);
+            },
         },
     };
 }

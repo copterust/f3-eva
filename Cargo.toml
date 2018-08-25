@@ -43,7 +43,7 @@ version = "0.2.1"
 package = "embedded-hal"
 
 [dependencies.hal]
-version = "0.7.3"
+version = "0.8.1"
 package = "alt-stm32f30x-hal"
 
 [dependencies.nalgebra]
