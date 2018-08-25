@@ -14,6 +14,8 @@ mod constants;
 mod esc;
 mod logging;
 mod motor;
+#[macro_use]
+mod toolbox;
 mod utils;
 
 // internal imports
@@ -32,14 +34,23 @@ use hal::gpio::{LowSpeed, MediumSpeed, Output, PullNone, PullUp, PushPull};
 use hal::prelude::*;
 use hal::serial::{self, Rx, Serial, Tx};
 use hal::spi::Spi;
+use hal::stm32f30x::{self, interrupt, Interrupt};
 use hal::timer;
 use libm::F32Ext;
 use mpu9250::Mpu9250;
 use nalgebra::geometry::Quaternion;
 use rt::{entry, exception, ExceptionFrame};
-use stm32f30x::{interrupt, Interrupt};
+// conditional support
+use cfg_if::cfg_if;
 
-type USART = hal::stm32f30x::USART2;
+// usart1 is default, so should be last
+cfg_if! {
+    if #[cfg(feature = "usart2")] {
+        use_serial!(USART2, usart_int);
+    } else if #[cfg(feature = "usart1")] {
+        use_serial!(USART1, usart_int);
+    }
+}
 
 type L = logging::SerialLogger<Tx<USART>,
                                gpio::PC14<PullNone,
@@ -76,11 +87,8 @@ fn main() -> ! {
                     .pclk2(32.mhz())
                     .freeze(&mut flash.acr);
 
-    // let txpin = gpioa.pa9.alternating(AF7);
-    // let rxpin = gpioa.pa10.alternating(AF7);
-    let mut serial =
-        device.USART2
-              .serial((gpioa.pa14, gpioa.pa15), constants::BAUD_RATE, clocks);
+    let mut serial = init_serial!(device, gpioa, constants::BAUD_RATE, clocks);
+    let serial_int = serial.get_interrupt();
     serial.listen(serial::Event::Rxne);
     let (mut tx, rx) = serial.split();
     // COBS frame
@@ -150,13 +158,8 @@ fn main() -> ! {
     l.blink();
     unsafe { cortex_m::interrupt::enable() };
     let mut nvic = core.NVIC;
-    nvic.enable(Interrupt::USART2_EXTI26);
-    // nvic.enable(Interrupt::USART1_EXTI25);
+    nvic.enable(serial_int);
 
-    // nvic.enable(Interrupt::EXTI0);
-    // let mut timer4 =
-    //     timer::tim4::Timer::new(device.TIM4, 8888.hz(), clocks, &mut
-    // rcc.apb1);
     delay.wc_delay_ms(2000);
     write!(l, "starting loop\r\n");
     let max_duty = m_rear_right.get_max_duty();
@@ -235,8 +238,6 @@ fn dkoef() -> f32 {
     unsafe { D_KOEFF }
 }
 
-interrupt!(USART2_EXTI26, usart_int);
-// interrupt!(USART1_EXTI25, usart_int);
 fn usart_int() {
     let rx = unsafe { extract(&mut RX) };
     let l = unsafe { extract(&mut L) };
@@ -289,20 +290,22 @@ fn usart_int() {
             }
         },
         Err(nb::Error::WouldBlock) => {},
-        Err(nb::Error::Other(e)) => match e {
-            serial::Error::Overrun => {
-                rx.clear_overrun_error();
-            },
-            serial::Error::Framing => {
-                rx.clear_framing_error();
-            },
-            serial::Error::Noise => {
-                rx.clear_noise_error();
-            },
-            _ => {
-                l.blink();
-                write!(l, "read error: {:?}\r\n", e);
-            },
+        Err(nb::Error::Other(e)) => {
+            match e {
+                serial::Error::Overrun => {
+                    rx.clear_overrun_error();
+                },
+                serial::Error::Framing => {
+                    rx.clear_framing_error();
+                },
+                serial::Error::Noise => {
+                    rx.clear_noise_error();
+                },
+                _ => {
+                    l.blink();
+                    write!(l, "read error: {:?}\r\n", e);
+                },
+            }
         },
     };
 }
