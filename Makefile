@@ -2,8 +2,8 @@ NAME := f3_eva
 fea :=
 FEATURES := $(if $(fea),"--features=$(fea)",)
 release :=
-MODE := $(if $(release),"release","debug")
-RELEASE_FLAG := $(if $(release),"--release",)
+MODE := $(if $(release),release,debug)
+RELEASE_FLAG := $(if $(release),--release,)
 TARGET := ./target/thumbv7em-none-eabihf/$(MODE)
 BIN := $(TARGET)/$(NAME)
 
