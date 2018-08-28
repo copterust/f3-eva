@@ -10,11 +10,6 @@ pub const TICK_PERIOD: i8 = 5;
 
 pub const NSAMPLES: u16 = 388;
 
-pub mod commands {
-    pub const SET_THRUST: &'static str = "thrust=";
-    pub const SET_Y_KOEF: &'static str = "ky=";
-}
-
 pub mod messages {
     pub const RESET: u8 = 'r' as u8;
     pub const BOOTLOADER: u8 = 'R' as u8;

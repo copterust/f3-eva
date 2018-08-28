@@ -49,10 +49,10 @@ macro_rules! use_serial {
     };
 }
 
-macro_rules! dispatch {
+macro_rules! when {
     (
-        $input: ident,
-        $($name:pat = $cmdvar:path => $code:expr),+
+        $input: ident starts with:
+        $($cmdvar:expr, $name:pat => $code:expr),+
     ) => {
         $(
             if $input.starts_with($cmdvar.as_bytes()) {
