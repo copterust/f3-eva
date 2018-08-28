@@ -8,6 +8,7 @@
 // internal
 mod ahrs;
 mod bootloader;
+mod cmd;
 mod constants;
 mod esc;
 mod logging;
@@ -18,6 +19,8 @@ mod utils;
 
 // internal imports
 use crate::bootloader::Bootloader;
+use crate::cmd::Cmd;
+use crate::constants as c;
 use crate::esc::pwm::Controller as ESC;
 use crate::motor::{brushed::Coreless as CorelessMotor, Motor};
 use crate::utils::WallClockDelay;
@@ -42,9 +45,9 @@ use nalgebra::geometry::Quaternion;
 use rt::{entry, exception, ExceptionFrame};
 
 #[cfg(not(any(feature = "usart2")))]
-use_serial!(USART1, usart_int);
+use_serial!(USART1, usart_int, state: Option<Cmd> = None);
 #[cfg(feature = "usart2")]
-use_serial!(USART2, usart_int);
+use_serial!(USART2, usart_int, state: Option<Cmd> = None);
 
 type L = logging::SerialLogger<Tx<USART>,
                                gpio::PC14<PullNone,
@@ -81,7 +84,7 @@ fn main() -> ! {
                     .pclk2(32.mhz())
                     .freeze(&mut flash.acr);
 
-    let mut serial = init_serial!(device, gpioa, constants::BAUD_RATE, clocks);
+    let mut serial = init_serial!(device, gpioa, c::BAUD_RATE, clocks);
     let serial_int = serial.get_interrupt();
     serial.listen(serial::Event::Rxne);
     let (mut tx, rx) = serial.split();
@@ -117,7 +120,7 @@ fn main() -> ! {
     // pa0 -- pa3
     let (ch1, ch2, ch3, ch4, mut timer2) =
         timer::tim2::Timer::new(device.TIM2,
-                                constants::TIM_FREQ,
+                                c::TIM_FREQ,
                                 clocks,
                                 &mut rcc.apb1).take_all();
     let mut m_rear_right = gpioa.pa0.pull_type(PullUp).to_pwm(ch1, MediumSpeed);
@@ -229,74 +232,93 @@ fn dkoef() -> f32 {
     unsafe { D_KOEFF }
 }
 
-fn usart_int() {
-    let rx = unsafe { extract(&mut RX) };
-    let l = unsafe { extract(&mut L) };
-    let bootloader = unsafe { extract(&mut BOOTLOADER) };
-    let motor = unsafe { extract(&mut MOTORS) };
-    let mut t = false;
-    match rx.read() {
-        Ok(b) => {
-            if b == constants::messages::RESET {
-                bootloader.system_reset();
-            } else if b == constants::messages::BOOTLOADER {
-                bootloader.to_bootloader();
-            } else if b == constants::messages::PLUS_T {
-                unsafe {
-                    TOTAL_THRUST += ctl_step();
-                }
-                t = !t;
-            } else if b == constants::messages::MINUS_T {
-                unsafe {
-                    if (TOTAL_THRUST > 0.0) {
-                        TOTAL_THRUST -= ctl_step();
-                        if (TOTAL_THRUST < 0.0) {
-                            TOTAL_THRUST = 0.0;
-                        }
-                    }
-                }
-                t = !t;
-            } else if b == constants::messages::PLUS_KY {
-                unsafe {
-                    D_KOEFF += (ctl_step() / 4.);
-                }
-                t = !t;
-            } else if b == constants::messages::MINUS_KY {
-                unsafe {
-                    D_KOEFF -= (ctl_step() / 4.);
-                }
-                t = !t;
-            }
-
-            if t {
-                write!(l,
-                       "TTHRUST: {:?}; DK: {:?}; C: {:?}\r\n",
-                       total_thrust(),
-                       dkoef(),
-                       ctl_step());
-                t = false;
-            } else {
-                // echo byte as is
+fn usart_int(state: &mut Option<cmd::Cmd>) {
+    if state.is_none() {
+        *state = Some(Cmd::new());
+    }
+    if let Some(cmd) = state.as_mut() {
+        let rx = unsafe { extract(&mut RX) };
+        let l = unsafe { extract(&mut L) };
+        // let bootloader = unsafe { extract(&mut BOOTLOADER) };
+        // let motor = unsafe { extract(&mut MOTORS) };
+        // let mut t = false;
+        match rx.read() {
+            Ok(b) => {
+                // first echo
                 l.write_char(b as char);
-            }
-        },
-        Err(nb::Error::WouldBlock) => {},
-        Err(nb::Error::Other(e)) => match e {
-            serial::Error::Overrun => {
-                rx.clear_overrun_error();
+                if let Some(word) = cmd.push(b) {
+                    #[cfg_attr(rustfmt, rustfmt_skip)]
+                    dispatch!(word,
+                              thrust = c::commands::SET_THRUST => {
+                                  write!(l, "tt= {:?}\r\n", thrust);
+                              },
+                              ky = c::commands::SET_THRUST => {
+                                  write!(l, "ky= {:?}\r\n", ky);
+                              }
+                    );
+                }
+
+                // if b == constants::messages::RESET {
+                //     bootloader.system_reset();
+                // } else if b == constants::messages::BOOTLOADER {
+                //     bootloader.to_bootloader();
+                // } else if b == constants::messages::PLUS_T {
+                //     unsafe {
+                //         TOTAL_THRUST += ctl_step();
+                //     }
+                //     t = !t;
+                // } else if b == constants::messages::MINUS_T {
+                //     unsafe {
+                //         if (TOTAL_THRUST > 0.0) {
+                //             TOTAL_THRUST -= ctl_step();
+                //             if (TOTAL_THRUST < 0.0) {
+                //                 TOTAL_THRUST = 0.0;
+                //             }
+                //         }
+                //     }
+                //     t = !t;
+                // } else if b == constants::messages::PLUS_KY {
+                //     unsafe {
+                //         D_KOEFF += (ctl_step() / 4.);
+                //     }
+                //     t = !t;
+                // } else if b == constants::messages::MINUS_KY {
+                //     unsafe {
+                //         D_KOEFF -= (ctl_step() / 4.);
+                //     }
+                //     t = !t;
+                // }
+
+                // if t {
+                //     write!(l,
+                //            "TTHRUST: {:?}; DK: {:?}; C: {:?}\r\n",
+                //            total_thrust(),
+                //            dkoef(),
+                //            ctl_step());
+                //     t = false;
+                // } else {
+                //     // echo byte as is
+                //     l.write_char(b as char);
+                // }
             },
-            serial::Error::Framing => {
-                rx.clear_framing_error();
+            Err(nb::Error::WouldBlock) => {},
+            Err(nb::Error::Other(e)) => match e {
+                serial::Error::Overrun => {
+                    rx.clear_overrun_error();
+                },
+                serial::Error::Framing => {
+                    rx.clear_framing_error();
+                },
+                serial::Error::Noise => {
+                    rx.clear_noise_error();
+                },
+                _ => {
+                    l.blink();
+                    write!(l, "read error: {:?}\r\n", e);
+                },
             },
-            serial::Error::Noise => {
-                rx.clear_noise_error();
-            },
-            _ => {
-                l.blink();
-                write!(l, "read error: {:?}\r\n", e);
-            },
-        },
-    };
+        };
+    }
 }
 
 fn to_euler(l: &mut L, q: &Quaternion<f32>) -> (f32, f32, f32) {

@@ -23,20 +23,20 @@ macro_rules! _init_serial {
 }
 
 macro_rules! _inter {
-    (USART1, $p: path) => {
-        interrupt!(USART1_EXTI25, usart_int);
+    (USART1, $p: path, $st: ty, $is: expr) => {
+        interrupt!(USART1_EXTI25, usart_int, state: $st = $is);
     };
-    (USART2, $p: path) => {
-        interrupt!(USART2_EXTI26, usart_int);
+    (USART2, $p: path, $s: expr) => {
+        interrupt!(USART2_EXTI26, usart_int, state: $st = $is);
     };
 }
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 macro_rules! use_serial {
-    ($u: ident, $int: path
+    ($u: ident, $int: path, state: $State:ty = $initial_state:expr
     ) => {
         type USART = stm32f30x::$u;
-        _inter!($u, $int);
+        _inter!($u, $int, $State, $initial_state);
         macro_rules! init_serial {
             ($device:ident,
              $gp:ident,
@@ -47,4 +47,19 @@ macro_rules! use_serial {
             };
         }
     };
+}
+
+macro_rules! dispatch {
+    (
+        $input: ident,
+        $($name:pat = $cmdvar:path => $code:expr),+
+    ) => {
+        $(
+            if $input.starts_with($cmdvar.as_bytes()) {
+                let $name = &$input[$cmdvar.len()..];
+                $code
+            } else
+        )+
+            { }
+    }
 }
