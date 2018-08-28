@@ -105,10 +105,9 @@ fn main() -> ! {
                               clocks);
     write!(l, "spi ok\r\n");
     // MPU
-    // XXX: catch error result, print and panic
     let mut mpu9250 = Mpu9250::imu_default(spi, ncs, &mut delay).unwrap();
     write!(l, "mpu ok, will proceed to calibration...\r\n");
-    // mpu9250.calibrate_at_rest(&mut delay).unwrap();
+    let accel_biases = mpu9250.calibrate_at_rest(&mut delay).unwrap();
     write!(l, "Calibration done, biases are stored\r\n");
     // let filter_freq = 4. / 1000.;
     // let mut ahrs = ahrs::AHRS::new(mpu9250, filter_freq);
@@ -172,7 +171,7 @@ fn main() -> ! {
         match mpu9250.all() {
             Ok(meas) => {
                 let g = meas.gyro;
-                let accel = meas.accel;
+                let accel = meas.accel - accel_biases;
                 // let x_err = 0. - g.x;
                 let y_err = 0. - g.y;
                 // let z_err = 0. - g.z;
