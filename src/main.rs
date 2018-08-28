@@ -1,11 +1,9 @@
 #![deny(warnings)]
 #![no_std]
 #![no_main]
+#![feature(core_intrinsics)]
+#![feature(panic_handler)]
 #![allow(unused)]
-
-// used to provide panic_implementation
-#[allow(unused)]
-use panic_abort;
 
 // internal
 mod ahrs;
@@ -26,6 +24,8 @@ use crate::utils::WallClockDelay;
 
 // rust std/core
 use core::fmt::Write;
+use core::intrinsics;
+use core::panic::PanicInfo;
 
 // external
 use hal::delay::Delay;
@@ -325,14 +325,41 @@ fn to_euler(l: &mut L, q: &Quaternion<f32>) -> (f32, f32, f32) {
 }
 
 exception!(HardFault, |ef| {
-    let l = unsafe { extract(&mut L) };
-    l.blink();
-    write!(l, "hard fault at {:?}\r\n", ef);
     panic!("HardFault at {:#?}", ef);
 });
 
 exception!(*, |irqn| {
-    let l = unsafe { extract(&mut L) };
-    write!(l, "Interrupt: {}\r\n", irqn);
     panic!("Unhandled exception (IRQn = {})", irqn);
 });
+
+#[panic_handler]
+fn panic(panic_info: &PanicInfo) -> ! {
+    match unsafe { &mut L } {
+        Some(ref mut l) => {
+            let payload = panic_info.payload().downcast_ref::<&str>();
+            match (panic_info.location(), payload) {
+                (Some(location), Some(msg)) => {
+                    write!(l,
+                           "panic in file '{}' at line {}: {:?}",
+                           location.file(),
+                           location.line(),
+                           msg);
+                },
+                (Some(location), None) => {
+                    write!(l,
+                           "panic in file '{}' at line {}",
+                           location.file(),
+                           location.line());
+                },
+                (None, Some(msg)) => {
+                    write!(l, "panic: {:?}", msg);
+                },
+                (None, None) => {
+                    write!(l, "panic occured, no info available");
+                },
+            }
+        },
+        None => {},
+    }
+    unsafe { intrinsics::abort() }
+}
