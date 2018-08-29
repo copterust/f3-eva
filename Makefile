@@ -1,11 +1,12 @@
 NAME := f3_eva
+target := $(shell grep "target =" .cargo/config | awk '{ print $$3 }' | tr -d '"')
 fea :=
 FEATURES := $(if $(fea),"--features=$(fea)",)
 release :=
 MODE := $(if $(release),release,debug)
 RELEASE_FLAG := $(if $(release),--release,)
-TARGET := ./target/thumbv7em-none-eabihf/$(MODE)
-BIN := $(TARGET)/$(NAME)
+TARGET_PATH := ./target/$(target)/$(MODE)
+BIN := $(TARGET_PATH)/$(NAME)
 
 UNAME := $(shell uname)
 ifeq ($(UNAME), Linux)
