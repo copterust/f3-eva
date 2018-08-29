@@ -31,6 +31,7 @@ use core::intrinsics;
 use core::panic::PanicInfo;
 
 // external
+use dcmimu::DCMIMU;
 use hal::delay::Delay;
 use hal::gpio::{self, AltFn, AF5, AF7};
 use hal::gpio::{LowSpeed, MediumSpeed, Output, PullNone, PullUp, PushPull};
@@ -42,6 +43,7 @@ use hal::timer;
 use libm::F32Ext;
 use mpu9250::Mpu9250;
 use nalgebra::geometry::Quaternion;
+use nalgebra::Vector3;
 use rt::{entry, exception, ExceptionFrame};
 
 #[cfg(not(any(feature = "usart2")))]
@@ -110,11 +112,18 @@ fn main() -> ! {
     // MPU
     let mut mpu9250 = Mpu9250::imu_default(spi, ncs, &mut delay).unwrap();
     write!(l, "mpu ok, will proceed to calibration...\r\n");
-    let accel_biases = mpu9250.calibrate_at_rest(&mut delay).unwrap();
-    write!(l, "Calibration done, biases are stored\r\n");
-    // let filter_freq = 4. / 1000.;
-    // let mut ahrs = ahrs::AHRS::new(mpu9250, filter_freq);
-    // write!(l, "Calibration done, biases {:?}\r\n", ahrs.gyro_biases());
+    let mut accel_biases = mpu9250.calibrate_at_rest(&mut delay).unwrap();
+    // Accel biases contain compensation for Earth gravity,
+    // so when we will adjust measurements with those biases, gravity will be
+    // cancelled. This is helpful for some algos, but not the others.
+    // For DCMIMU we need gravity, so we will add it back to measurements, by
+    // adjusting biases once.
+    // TODO: find real Z axis.
+    accel_biases.z -= mpu9250::G;
+    write!(l,
+           "Calibration done, gyro biases are stored; accel: {:?}\r\n",
+           vec_to_tuple(&accel_biases));
+    let mut dcmimu = DCMIMU::new();
 
     // MOTORS:
     // pa0 -- pa3
@@ -155,22 +164,13 @@ fn main() -> ! {
     nvic.enable(serial_int);
 
     delay.wc_delay_ms(2000);
-    write!(l, "starting loop\r\n");
     let max_duty = m_rear_right.get_max_duty();
     write!(l, "max duty (arr): {}\r\n", max_duty);
+    let mut dt_secs = 0.0;
     loop {
-        // match ahrs.read() {
-        //     Ok(q) => {
-        //         write!(l, "w={};i={};j={};k={}\r\n", q.w, q.i, q.j, q.k);
-        //         let (roll, yaw, pitch) = to_euler(l, &q);
-        //         write!(l, "roll={},yaw={},pitch={}\r\n", roll, yaw, pitch);
-        //     },
-        //     Err(e) => {
-        //         write!(l, "AHRS error: {:?}\r\n", e);
-        //     },
-        // }
         let mut delta = 0.;
         let mut prev_err = 0.;
+        dt_secs += 0.001;
         match mpu9250.all() {
             Ok(meas) => {
                 let g = meas.gyro;
@@ -181,7 +181,16 @@ fn main() -> ! {
                 let pk = pkoef();
                 let ik = ikoef();
                 let dk = dkoef();
-
+                write!(l,
+                       "dt: {}; gyro: {:?}; accel: {:?}\r\n",
+                       dt_secs,
+                       vec_to_tuple(&g),
+                       vec_to_tuple(&accel));
+                dcmimu.update(vec_to_tuple(&g), vec_to_tuple(&accel), dt_secs);
+                let dcm = dcmimu.all();
+                write!(l,
+                       "dt: {}; Yaw: {}; Pitch: {}; Roll: {}\r\n",
+                       dt_secs, dcm.yaw, dcm.pitch, dcm.roll);
                 let i_comp = 0.;
                 delta = y_err - prev_err;
                 let y_corr = y_err * pk + i_comp * ik + dk * delta;
@@ -302,20 +311,22 @@ fn usart_int(state: &mut Option<cmd::Cmd>) {
                 // }
             },
             Err(nb::Error::WouldBlock) => {},
-            Err(nb::Error::Other(e)) => match e {
-                serial::Error::Overrun => {
-                    rx.clear_overrun_error();
-                },
-                serial::Error::Framing => {
-                    rx.clear_framing_error();
-                },
-                serial::Error::Noise => {
-                    rx.clear_noise_error();
-                },
-                _ => {
-                    l.blink();
-                    write!(l, "read error: {:?}\r\n", e);
-                },
+            Err(nb::Error::Other(e)) => {
+                match e {
+                    serial::Error::Overrun => {
+                        rx.clear_overrun_error();
+                    },
+                    serial::Error::Framing => {
+                        rx.clear_framing_error();
+                    },
+                    serial::Error::Noise => {
+                        rx.clear_noise_error();
+                    },
+                    _ => {
+                        l.blink();
+                        write!(l, "read error: {:?}\r\n", e);
+                    },
+                }
             },
         };
     }
@@ -344,6 +355,11 @@ fn to_euler(l: &mut L, q: &Quaternion<f32>) -> (f32, f32, f32) {
         yaw = yaw_inp.atan2(-sqx - sqy + sqz + sqw);
     }
     (roll, pitch, yaw)
+}
+
+// TODO: generify
+fn vec_to_tuple(inp: &Vector3<f32>) -> (f32, f32, f32) {
+    (inp.x, inp.y, inp.z)
 }
 
 exception!(HardFault, |ef| {
