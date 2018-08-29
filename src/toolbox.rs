@@ -51,7 +51,7 @@ macro_rules! use_serial {
 
 macro_rules! when {
     (
-        $input: ident starts with:
+        $input: ident.startswith():
         $($cmdvar:expr, $name:pat => $code:expr),+
     ) => {
         $(

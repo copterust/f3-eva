@@ -257,7 +257,7 @@ fn usart_int(state: &mut Option<cmd::Cmd>) {
                 l.write_char(b as char);
                 if let Some(word) = cmd.push(b) {
                     #[cfg_attr(rustfmt, rustfmt_skip)]
-                    when!(word starts with:
+                    when!(word.startswith():
                           "thrust=", thrust => {
                               write!(l, "tt= {:?}\r\n", thrust);
                           },
