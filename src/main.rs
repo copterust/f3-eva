@@ -61,7 +61,7 @@ static mut BOOTLOADER: Option<bootloader::stm32f30x::Bootloader> = None;
 static mut ESC: Option<ESC> = None;
 static mut MOTORS: Option<CorelessMotor> = None;
 
-static mut P_KOEFF: f32 = 1000.;
+static mut P_KOEFF: f32 = 0.;
 static mut I_KOEFF: f32 = 0.;
 static mut D_KOEFF: f32 = 0.;
 
