@@ -204,14 +204,13 @@ fn main() -> ! {
                 let ik = ikoef();
                 let dk = dkoef();
                 let t_ms = now_ms();
-                let dt_secs = t_ms as f32 / 1000.0;
+                let dt_ms = t_ms.wrapping_sub(prev_t_ms);
+                let dt_secs = dt_ms as f32 / 1000.0;
                 write!(l,
                        "dt: {}; gyro: {:?}; accel: {:?}\r\n",
                        dt_secs,
                        vec_to_tuple(&g),
                        vec_to_tuple(&accel));
-                // Get time delta
-                let dt_ms = t_ms.wrapping_sub(prev_t_ms);
                 prev_t_ms = t_ms;
                 dcmimu.update(vec_to_tuple(&g), vec_to_tuple(&accel), dt_secs);
                 let dcm = dcmimu.all();
