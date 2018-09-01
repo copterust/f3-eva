@@ -68,6 +68,18 @@ static mut D_KOEFF: f32 = 0.;
 static mut TOTAL_THRUST: f32 = 0.;
 static mut CTL_STEP: f32 = 100.;
 
+static mut NOW_MS: u32 = 0;
+
+fn now_ms() -> u32 {
+    unsafe {
+        core::ptr::read_volatile(&NOW_MS as *const u32)
+    }
+}
+
+exception!(SysTick, || {
+    NOW_MS = NOW_MS.wrapping_add(1);
+});
+
 entry!(main);
 fn main() -> ! {
     let device = hal::stm32f30x::Peripherals::take().unwrap();
@@ -165,12 +177,22 @@ fn main() -> ! {
 
     delay.wc_delay_ms(2000);
     let max_duty = m_rear_right.get_max_duty();
+
+    // Set systick to fire every ms
+    let mut syst = delay.free();
+    unsafe { cortex_m::interrupt::enable() };
+    let reload = (clocks.sysclk().0/1000) - 1;
+    syst.set_reload(reload);
+    syst.clear_current();
+    syst.enable_interrupt();
+    syst.enable_counter();
+
     write!(l, "max duty (arr): {}\r\n", max_duty);
-    let mut dt_secs = 0.0;
+    let mut prev_t_ms = now_ms();
     loop {
         let mut delta = 0.;
         let mut prev_err = 0.;
-        dt_secs += 0.001;
+
         match mpu9250.all() {
             Ok(meas) => {
                 let g = meas.gyro;
@@ -181,11 +203,16 @@ fn main() -> ! {
                 let pk = pkoef();
                 let ik = ikoef();
                 let dk = dkoef();
+                let t_ms = now_ms();
+                let dt_secs = t_ms as f32 / 1000.0;
                 write!(l,
                        "dt: {}; gyro: {:?}; accel: {:?}\r\n",
                        dt_secs,
                        vec_to_tuple(&g),
                        vec_to_tuple(&accel));
+                // Get time delta
+                let dt_ms = t_ms.wrapping_sub(prev_t_ms);
+                prev_t_ms = t_ms;
                 dcmimu.update(vec_to_tuple(&g), vec_to_tuple(&accel), dt_secs);
                 let dcm = dcmimu.all();
                 write!(l,
@@ -378,7 +405,7 @@ fn panic(panic_info: &PanicInfo) -> ! {
             match (panic_info.location(), payload) {
                 (Some(location), Some(msg)) => {
                     write!(l,
-                           "panic in file '{}' at line {}: {:?}",
+                           "\r\npanic in file '{}' at line {}: {:?}\r\n",
                            location.file(),
                            location.line(),
                            msg);
