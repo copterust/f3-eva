@@ -63,9 +63,7 @@ static mut MOTORS: Option<CorelessMotor> = None;
 static mut P_KOEFF: f32 = 0.;
 static mut I_KOEFF: f32 = 0.;
 static mut D_KOEFF: f32 = 0.;
-
 static mut TOTAL_THRUST: f32 = 0.;
-static mut CTL_STEP: f32 = 100.;
 
 static mut NOW_MS: u32 = 0;
 
@@ -222,10 +220,6 @@ fn total_thrust() -> f32 {
     unsafe { TOTAL_THRUST }
 }
 
-fn ctl_step() -> f32 {
-    unsafe { CTL_STEP }
-}
-
 fn pkoef() -> f32 {
     unsafe { P_KOEFF }
 }
@@ -249,22 +243,38 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
             // first echo
             l.write_char(b as char);
             if let Some(word) = cmd.push(b) {
-                #[cfg_attr(rustfmt, rustfmt_skip)]
-                when!(word.startswith():
-                      "thrust=", thrust => {
-                          write!(l, "tt= {:?}\r\n", thrust);
-                          t = true;
-                      },
-                      "dk=", dk => {
-                          t = true;
-                          write!(l, "dk= {:?}\r\n", dk);
-                      },
-                      "boot", _ => {
-                          bootloader.to_bootloader();
-                      },
-                      "reset", _ => {
-                          bootloader.system_reset();
-                      }
+                // koeffs are parsed as i32 for simplicity
+                parse!(word:
+                       ["thrust=", thrust:i32] => {
+                           unsafe {
+                               TOTAL_THRUST = thrust as f32
+                           };
+                           t = true;
+                       },
+                       ["dk=", dk:i32] => {
+                           unsafe {
+                               D_KOEFF = dk as f32
+                           };
+                           t = true;
+                       },
+                       ["pk=", pk:i32] => {
+                           unsafe {
+                               P_KOEFF = pk as f32
+                           };
+                           t = true;
+                       },
+                       ["ik=", ik:i32] => {
+                           unsafe {
+                               I_KOEFF = ik as f32
+                           };
+                           t = true;
+                       },
+                       ["boot"] => {
+                           bootloader.to_bootloader();
+                       },
+                       ["reset"] => {
+                           bootloader.system_reset();
+                       }
                 );
             }
 

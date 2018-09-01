@@ -27,3 +27,10 @@ impl WallClockDelay for Delay {
 pub fn vec_to_tuple(inp: &Vector3<f32>) -> (f32, f32, f32) {
     (inp.x, inp.y, inp.z)
 }
+
+pub fn parse<T, E>(bytes: &[u8]) -> Result<T, E>
+    where T: core::str::FromStr<Err = E>
+{
+    let v = unsafe { core::str::from_utf8_unchecked(bytes) };
+    T::from_str(v)
+}

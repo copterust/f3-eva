@@ -49,17 +49,67 @@ macro_rules! use_serial {
     };
 }
 
-macro_rules! when {
+macro_rules! when_arm {
     (
-        $input: ident.startswith():
-        $($cmdvar:expr, $name:pat => $code:expr),+
+        $input:ident, $cmd: expr, $name:ident : Option<$ty:ty>
+    ) => {
+        let rest = &$input[$cmdvar.len()..];
+        let $name = utils::parse::<$ty, _>(rest).ok()
+    };
+}
+
+// $cmdvar:expr, $name:ident : $ty:ty => $code:block
+// :ident : Option<$ty:ty>
+// macro_rules! parse {
+
+//     ($input:ident, [$cmdvar:ident], $code:expr) => {
+//         if $input == $cmdvar.as_bytes() {
+//             $code;
+//         } else
+//     };
+//     (
+//         $input: ident:
+//         $([$($var:tt)+] => $code:expr),+
+//     ) => {
+//         $(
+//             parse!($input, [$($var)+], $code)
+//             // if $input.starts_with($cmdvar.as_bytes()) {
+//             //     let rest = &$input[$cmdvar.len()..];
+//             //     if let Ok($name) = utils::parse::<$ty, _>(rest) {
+//             //         $code
+//             //     }
+//             // } else
+//         )+
+//         // {
+//         // }
+//     }
+// }
+
+macro_rules! parse {
+    (@cond $inp:ident $var:expr) => {
+        $inp == $var.as_bytes()
+    };
+    (@cond $inp:ident $var:expr, $name:ident : $ty:ty) => {
+        $inp.starts_with($var.as_bytes())
+    };
+    (@process $inp:ident $code:expr; $var:expr) => {
+        $code
+    };
+    (@process $inp:ident $code:expr; $var:expr, $name:ident : $ty:ty) => {
+
+        let rest = &$inp[$var.len()..];
+        if let Ok($name) = utils::parse::<$ty, _>(rest) {
+            $code
+        }
+    };
+    ($input:ident:
+     $([$($option:tt)+] => $code:expr),+
     ) => {
         $(
-            if $input.starts_with($cmdvar.as_bytes()) {
-                let $name = &$input[$cmdvar.len()..];
-                $code
+            if (parse!(@cond $input $($option)+)) {
+                parse!(@process $input $code; $($option)+);
             } else
         )+
-            { }
-    }
+        { }
+    };
 }
