@@ -26,7 +26,7 @@ macro_rules! _inter {
     (USART1, $p: path, $st: ty, $is: expr) => {
         interrupt!(USART1_EXTI25, usart_int, state: $st = $is);
     };
-    (USART2, $p: path, $s: expr) => {
+    (USART2, $p: path, $st: ty, $is: expr) => {
         interrupt!(USART2_EXTI26, usart_int, state: $st = $is);
     };
 }
