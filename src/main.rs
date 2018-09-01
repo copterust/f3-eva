@@ -23,7 +23,7 @@ use crate::cmd::Cmd;
 use crate::constants as c;
 use crate::esc::pwm::Controller as ESC;
 use crate::motor::{brushed::Coreless as CorelessMotor, Motor};
-use crate::utils::WallClockDelay;
+use crate::utils::{vec_to_tuple, WallClockDelay};
 
 // rust std/core
 use core::fmt::Write;
@@ -31,7 +31,6 @@ use core::intrinsics;
 use core::panic::PanicInfo;
 
 // external
-use dcmimu::DCMIMU;
 use hal::delay::Delay;
 use hal::gpio::{self, AltFn, AF5, AF7};
 use hal::gpio::{LowSpeed, MediumSpeed, Output, PullNone, PullUp, PushPull};
@@ -40,7 +39,7 @@ use hal::serial::{self, Rx, Serial, Tx};
 use hal::spi::Spi;
 use hal::stm32f30x::{self, interrupt, Interrupt};
 use hal::timer;
-use libm::F32Ext;
+
 use mpu9250::Mpu9250;
 use nalgebra::geometry::Quaternion;
 use nalgebra::Vector3;
@@ -71,9 +70,7 @@ static mut CTL_STEP: f32 = 100.;
 static mut NOW_MS: u32 = 0;
 
 fn now_ms() -> u32 {
-    unsafe {
-        core::ptr::read_volatile(&NOW_MS as *const u32)
-    }
+    unsafe { core::ptr::read_volatile(&NOW_MS as *const u32) }
 }
 
 exception!(SysTick, || {
@@ -122,21 +119,10 @@ fn main() -> ! {
                               clocks);
     write!(l, "spi ok\r\n");
     // MPU
-    let mut mpu9250 = Mpu9250::imu_default(spi, ncs, &mut delay).unwrap();
-    write!(l, "mpu ok, will proceed to calibration...\r\n");
-    let mut accel_biases = mpu9250.calibrate_at_rest(&mut delay).unwrap();
-    // Accel biases contain compensation for Earth gravity,
-    // so when we will adjust measurements with those biases, gravity will be
-    // cancelled. This is helpful for some algos, but not the others.
-    // For DCMIMU we need gravity, so we will add it back to measurements, by
-    // adjusting biases once.
-    // TODO: find real Z axis.
-    accel_biases.z -= mpu9250::G;
-    write!(l,
-           "Calibration done, gyro biases are stored; accel: {:?}\r\n",
-           vec_to_tuple(&accel_biases));
-    let mut dcmimu = DCMIMU::new();
-
+    let mut mpu9250 =
+        Mpu9250::imu_default(spi, ncs, &mut delay).expect("mpu error");
+    let mut ahrs =
+        ahrs::AHRS::create_calibrated(mpu9250, &mut delay).expect("ahrs error");
     // MOTORS:
     // pa0 -- pa3
     let (ch1, ch2, ch3, ch4, mut timer2) =
@@ -180,8 +166,7 @@ fn main() -> ! {
 
     // Set systick to fire every ms
     let mut syst = delay.free();
-    unsafe { cortex_m::interrupt::enable() };
-    let reload = (clocks.sysclk().0/1000) - 1;
+    let reload = (clocks.sysclk().0 / 1000) - 1;
     syst.set_reload(reload);
     syst.clear_current();
     syst.enable_interrupt();
@@ -192,30 +177,16 @@ fn main() -> ! {
     loop {
         let mut delta = 0.;
         let mut prev_err = 0.;
-
-        match mpu9250.all() {
-            Ok(meas) => {
-                let g = meas.gyro;
-                let accel = meas.accel - accel_biases;
+        let t_ms = now_ms();
+        let dt_ms = t_ms.wrapping_sub(prev_t_ms);
+        let dt_secs = dt_ms as f32 / 1000.0;
+        match ahrs.estimate(dt_secs) {
+            Ok(dcm) => {
                 // let x_err = 0. - g.x;
                 // let z_err = 0. - g.z;
                 let pk = pkoef();
                 let ik = ikoef();
                 let dk = dkoef();
-                let t_ms = now_ms();
-                let dt_ms = t_ms.wrapping_sub(prev_t_ms);
-                let dt_secs = dt_ms as f32 / 1000.0;
-    //            write!(l,
-    //                   "dt: {}; gyro: {:?}; accel: {:?}\r\n",
-    //                   dt_secs,
-    //                   vec_to_tuple(&g),
-    //                   vec_to_tuple(&accel));
-                prev_t_ms = t_ms;
-                dcmimu.update(vec_to_tuple(&g), vec_to_tuple(&accel), dt_secs);
-                let dcm = dcmimu.all();
-   //             write!(l,
-   //                    "dt: {}; Yaw: {}; Pitch: {}; Roll: {}\r\n",
-   //                    dt_secs, dcm.yaw, dcm.pitch, dcm.roll);
                 let y_err = 0. - dcm.pitch;
                 let i_comp = 0.;
                 delta = y_err - prev_err;
@@ -267,125 +238,73 @@ fn dkoef() -> f32 {
     unsafe { D_KOEFF }
 }
 
+fn process_cmd(cmd: &mut cmd::Cmd) {
+    let rx = unsafe { extract(&mut RX) };
+    let l = unsafe { extract(&mut L) };
+    let bootloader = unsafe { extract(&mut BOOTLOADER) };
+    let motor = unsafe { extract(&mut MOTORS) };
+    let mut t = false;
+    match rx.read() {
+        Ok(b) => {
+            // first echo
+            l.write_char(b as char);
+            if let Some(word) = cmd.push(b) {
+                #[cfg_attr(rustfmt, rustfmt_skip)]
+                when!(word.startswith():
+                      "thrust=", thrust => {
+                          write!(l, "tt= {:?}\r\n", thrust);
+                          t = true;
+                      },
+                      "dk=", dk => {
+                          t = true;
+                          write!(l, "dk= {:?}\r\n", dk);
+                      },
+                      "boot", _ => {
+                          bootloader.to_bootloader();
+                      },
+                      "reset", _ => {
+                          bootloader.system_reset();
+                      }
+                );
+            }
+
+            if t {
+                write!(l,
+                       "TTHRUST: {:?}; DK: {:?}\r\n",
+                       total_thrust(),
+                       dkoef());
+                t = false;
+            } else {
+                // echo byte as is
+                l.write_char(b as char);
+            }
+        },
+        Err(nb::Error::WouldBlock) => {},
+        Err(nb::Error::Other(e)) => match e {
+            serial::Error::Overrun => {
+                rx.clear_overrun_error();
+            },
+            serial::Error::Framing => {
+                rx.clear_framing_error();
+            },
+            serial::Error::Noise => {
+                rx.clear_noise_error();
+            },
+            _ => {
+                l.blink();
+                write!(l, "read error: {:?}\r\n", e);
+            },
+        },
+    };
+}
+
 fn usart_int(state: &mut Option<cmd::Cmd>) {
     if state.is_none() {
         *state = Some(Cmd::new());
     }
     if let Some(cmd) = state.as_mut() {
-        let rx = unsafe { extract(&mut RX) };
-        let l = unsafe { extract(&mut L) };
-        let bootloader = unsafe { extract(&mut BOOTLOADER) };
-        let motor = unsafe { extract(&mut MOTORS) };
-        let mut t = false;
-        match rx.read() {
-            Ok(b) => {
-                // first echo
-                l.write_char(b as char);
-                if let Some(word) = cmd.push(b) {
-                    #[cfg_attr(rustfmt, rustfmt_skip)]
-                    when!(word.startswith():
-                          "thrust=", thrust => {
-                              write!(l, "tt= {:?}\r\n", thrust);
-                          },
-                          "ky=", ky => {
-                              write!(l, "ky= {:?}\r\n", ky);
-                          }
-                    );
-                }
-
-                if b == constants::messages::RESET {
-                    bootloader.system_reset();
-                } else if b == constants::messages::BOOTLOADER {
-                    bootloader.to_bootloader();
-                } else if b == constants::messages::PLUS_T {
-                    unsafe {
-                        TOTAL_THRUST += ctl_step();
-                    }
-                    t = !t;
-                } else if b == constants::messages::MINUS_T {
-                    unsafe {
-                        if (TOTAL_THRUST > 0.0) {
-                            TOTAL_THRUST -= ctl_step();
-                            if (TOTAL_THRUST < 0.0) {
-                                TOTAL_THRUST = 0.0;
-                            }
-                        }
-                    }
-                    t = !t;
-                } else if b == constants::messages::PLUS_KY {
-                    unsafe {
-                        D_KOEFF += (ctl_step() / 4.);
-                    }
-                    t = !t;
-                } else if b == constants::messages::MINUS_KY {
-                    unsafe {
-                        D_KOEFF -= (ctl_step() / 4.);
-                    }
-                    t = !t;
-                }
-
-                if t {
-                    write!(l,
-                           "TTHRUST: {:?}; DK: {:?}; C: {:?}\r\n",
-                           total_thrust(),
-                           dkoef(),
-                           ctl_step());
-                    t = false;
-                } else {
-                    // echo byte as is
-                    l.write_char(b as char);
-                }
-            },
-            Err(nb::Error::WouldBlock) => {},
-            Err(nb::Error::Other(e)) => {
-                match e {
-                    serial::Error::Overrun => {
-                        rx.clear_overrun_error();
-                    },
-                    serial::Error::Framing => {
-                        rx.clear_framing_error();
-                    },
-                    serial::Error::Noise => {
-                        rx.clear_noise_error();
-                    },
-                    _ => {
-                        l.blink();
-                        write!(l, "read error: {:?}\r\n", e);
-                    },
-                }
-            },
-        };
+        process_cmd(cmd)
     }
-}
-
-fn to_euler(l: &mut L, q: &Quaternion<f32>) -> (f32, f32, f32) {
-    let sqw = q.w * q.w;
-    let sqx = q.i * q.i;
-    let sqy = q.j * q.j;
-    let sqz = q.k * q.k;
-    let pitch_inp = -2. * (q.i * q.k - q.j * q.w);
-    let pitch = pitch_inp.asin();
-    let m = q.i * q.j + q.k * q.w;
-    let mut roll;
-    let mut yaw;
-    if (m - 0.5).abs() < 1e-8 {
-        roll = 0.;
-        yaw = 2. * q.i.atan2(q.w);
-    } else if (m + 0.5).abs() < 1e-8 {
-        roll = -2. * q.i.atan2(q.w);
-        yaw = 0.;
-    } else {
-        let roll_inp = 2. * (q.i * q.j + q.k * q.w);
-        roll = roll_inp.atan2(sqx - sqy - sqz + sqw);
-        let yaw_inp = 2. * (q.j * q.k + q.i * q.w);
-        yaw = yaw_inp.atan2(-sqx - sqy + sqz + sqw);
-    }
-    (roll, pitch, yaw)
-}
-
-// TODO: generify
-fn vec_to_tuple(inp: &Vector3<f32>) -> (f32, f32, f32) {
-    (inp.x, inp.y, inp.z)
 }
 
 exception!(HardFault, |ef| {
