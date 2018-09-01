@@ -198,7 +198,6 @@ fn main() -> ! {
                 let g = meas.gyro;
                 let accel = meas.accel - accel_biases;
                 // let x_err = 0. - g.x;
-                let y_err = 0. - g.y;
                 // let z_err = 0. - g.z;
                 let pk = pkoef();
                 let ik = ikoef();
@@ -206,17 +205,18 @@ fn main() -> ! {
                 let t_ms = now_ms();
                 let dt_ms = t_ms.wrapping_sub(prev_t_ms);
                 let dt_secs = dt_ms as f32 / 1000.0;
-                write!(l,
-                       "dt: {}; gyro: {:?}; accel: {:?}\r\n",
-                       dt_secs,
-                       vec_to_tuple(&g),
-                       vec_to_tuple(&accel));
+    //            write!(l,
+    //                   "dt: {}; gyro: {:?}; accel: {:?}\r\n",
+    //                   dt_secs,
+    //                   vec_to_tuple(&g),
+    //                   vec_to_tuple(&accel));
                 prev_t_ms = t_ms;
                 dcmimu.update(vec_to_tuple(&g), vec_to_tuple(&accel), dt_secs);
                 let dcm = dcmimu.all();
-                write!(l,
-                       "dt: {}; Yaw: {}; Pitch: {}; Roll: {}\r\n",
-                       dt_secs, dcm.yaw, dcm.pitch, dcm.roll);
+   //             write!(l,
+   //                    "dt: {}; Yaw: {}; Pitch: {}; Roll: {}\r\n",
+   //                    dt_secs, dcm.yaw, dcm.pitch, dcm.roll);
+                let y_err = 0. - dcm.pitch;
                 let i_comp = 0.;
                 delta = y_err - prev_err;
                 let y_corr = y_err * pk + i_comp * ik + dk * delta;
@@ -274,9 +274,9 @@ fn usart_int(state: &mut Option<cmd::Cmd>) {
     if let Some(cmd) = state.as_mut() {
         let rx = unsafe { extract(&mut RX) };
         let l = unsafe { extract(&mut L) };
-        // let bootloader = unsafe { extract(&mut BOOTLOADER) };
-        // let motor = unsafe { extract(&mut MOTORS) };
-        // let mut t = false;
+        let bootloader = unsafe { extract(&mut BOOTLOADER) };
+        let motor = unsafe { extract(&mut MOTORS) };
+        let mut t = false;
         match rx.read() {
             Ok(b) => {
                 // first echo
@@ -293,48 +293,48 @@ fn usart_int(state: &mut Option<cmd::Cmd>) {
                     );
                 }
 
-                // if b == constants::messages::RESET {
-                //     bootloader.system_reset();
-                // } else if b == constants::messages::BOOTLOADER {
-                //     bootloader.to_bootloader();
-                // } else if b == constants::messages::PLUS_T {
-                //     unsafe {
-                //         TOTAL_THRUST += ctl_step();
-                //     }
-                //     t = !t;
-                // } else if b == constants::messages::MINUS_T {
-                //     unsafe {
-                //         if (TOTAL_THRUST > 0.0) {
-                //             TOTAL_THRUST -= ctl_step();
-                //             if (TOTAL_THRUST < 0.0) {
-                //                 TOTAL_THRUST = 0.0;
-                //             }
-                //         }
-                //     }
-                //     t = !t;
-                // } else if b == constants::messages::PLUS_KY {
-                //     unsafe {
-                //         D_KOEFF += (ctl_step() / 4.);
-                //     }
-                //     t = !t;
-                // } else if b == constants::messages::MINUS_KY {
-                //     unsafe {
-                //         D_KOEFF -= (ctl_step() / 4.);
-                //     }
-                //     t = !t;
-                // }
+                if b == constants::messages::RESET {
+                    bootloader.system_reset();
+                } else if b == constants::messages::BOOTLOADER {
+                    bootloader.to_bootloader();
+                } else if b == constants::messages::PLUS_T {
+                    unsafe {
+                        TOTAL_THRUST += ctl_step();
+                    }
+                    t = !t;
+                } else if b == constants::messages::MINUS_T {
+                    unsafe {
+                        if (TOTAL_THRUST > 0.0) {
+                            TOTAL_THRUST -= ctl_step();
+                            if (TOTAL_THRUST < 0.0) {
+                                TOTAL_THRUST = 0.0;
+                            }
+                        }
+                    }
+                    t = !t;
+                } else if b == constants::messages::PLUS_KY {
+                    unsafe {
+                        D_KOEFF += (ctl_step() / 4.);
+                    }
+                    t = !t;
+                } else if b == constants::messages::MINUS_KY {
+                    unsafe {
+                        D_KOEFF -= (ctl_step() / 4.);
+                    }
+                    t = !t;
+                }
 
-                // if t {
-                //     write!(l,
-                //            "TTHRUST: {:?}; DK: {:?}; C: {:?}\r\n",
-                //            total_thrust(),
-                //            dkoef(),
-                //            ctl_step());
-                //     t = false;
-                // } else {
-                //     // echo byte as is
-                //     l.write_char(b as char);
-                // }
+                if t {
+                    write!(l,
+                           "TTHRUST: {:?}; DK: {:?}; C: {:?}\r\n",
+                           total_thrust(),
+                           dkoef(),
+                           ctl_step());
+                    t = false;
+                } else {
+                    // echo byte as is
+                    l.write_char(b as char);
+                }
             },
             Err(nb::Error::WouldBlock) => {},
             Err(nb::Error::Other(e)) => {
