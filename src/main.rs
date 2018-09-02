@@ -67,6 +67,7 @@ static mut TOTAL_THRUST: f32 = 0.;
 
 static mut NOW_MS: u32 = 0;
 static mut PITCH_PWM: u32 = 0;
+static mut STATUS_REQ: bool = false;
 
 fn now_ms() -> u32 {
     unsafe { core::ptr::read_volatile(&NOW_MS as *const u32) }
@@ -208,13 +209,19 @@ fn main() -> ! {
                     m_rear_right.set_duty(pitch_cmd);
                     m3_rear_left.set_duty(pitch_cmd);
                 }
-                write!(l, "Pitch: {}\r\n", dcm.pitch);
-                write!(l, "Motors: {}, {}, {}, {}\r\n",
-                    m_rear_right.get_duty(),
-                    m2_front_right.get_duty(),
-                    m3_rear_left.get_duty(),
-                    m4_front_left.get_duty()
-                );
+                unsafe {
+                    if STATUS_REQ == true {
+                        STATUS_REQ = false;
+                        write!(l, "Pitch: {}\r\n", dcm.pitch);
+                        write!(l, "Motors: {}, {}, {}, {} max {}\r\n",
+                            m_rear_right.get_duty(),
+                            m2_front_right.get_duty(),
+                            m3_rear_left.get_duty(),
+                            m4_front_left.get_duty(),
+                            m4_front_left.get_max_duty()
+                        );
+                    }
+                }
             },
             Err(e) => {
                 write!(l, "ahrs error: {:?}\r\n", e);
@@ -263,9 +270,9 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
             if let Some(word) = cmd.push(b) {
                 // koeffs are parsed as i32 for simplicity
                 parse!(word:
-                       ["pitch_pwm=", pitch:u32] => {
+                       ["pitch_pwm=", pitch:i32] => {
                            unsafe {
-                               PITCH_PWM = pitch;
+                               PITCH_PWM = pitch as u32;
                            };
                            t = true;
                        },
@@ -298,6 +305,9 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
                        },
                        ["reset"] => {
                            bootloader.system_reset();
+                       },
+                       ["status"] => {
+                           unsafe { STATUS_REQ = true; }
                        }
                 );
             }
