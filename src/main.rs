@@ -319,10 +319,7 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
                        total_thrust(),
                        dkoef());
                 t = false;
-            } else {
-                // echo byte as is
-                l.write_char(b as char);
-            }
+            };
         },
         Err(nb::Error::WouldBlock) => {},
         Err(nb::Error::Other(e)) => match e {
