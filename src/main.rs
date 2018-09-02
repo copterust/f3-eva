@@ -222,6 +222,8 @@ fn main() -> ! {
                             m4_front_left.get_duty(),
                             m4_front_left.get_max_duty()
                         );
+                        write!(l, "Tthrust: {}; dk: {}\r\n",
+                               total_thrust(), dkoef());
                     }
                 }
             },
@@ -264,44 +266,37 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
     let l = unsafe { extract(&mut L) };
     let bootloader = unsafe { extract(&mut BOOTLOADER) };
     let motor = unsafe { extract(&mut MOTORS) };
-    let mut t = false;
     match rx.read() {
         Ok(b) => {
             // first echo
             l.write_char(b as char);
             if let Some(word) = cmd.push(b) {
-                write!(l, "word: {:?}\r\n", word);
                 // koeffs are parsed as i32 for simplicity
                 parse!(word:
                        ["pitch_pwm=", pitch:i32] => {
                            unsafe {
                                PITCH_PWM = pitch as u32;
                            };
-                           t = true;
                        },
                        ["thrust=", thrust:i32] => {
                            unsafe {
                                TOTAL_THRUST = thrust as f32
                            };
-                           t = true;
                        },
                        ["dk=", dk:i32] => {
                            unsafe {
                                D_KOEFF = dk as f32
                            };
-                           t = true;
                        },
                        ["pk=", pk:i32] => {
                            unsafe {
                                P_KOEFF = pk as f32
                            };
-                           t = true;
                        },
                        ["ik=", ik:i32] => {
                            unsafe {
                                I_KOEFF = ik as f32
                            };
-                           t = true;
                        },
                        ["boot"] => {
                            bootloader.to_bootloader();
@@ -314,14 +309,6 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
                        }
                 );
             }
-
-            if t {
-                write!(l,
-                       "TTHRUST: {:?}; DK: {:?}\r\n",
-                       total_thrust(),
-                       dkoef());
-                t = false;
-            };
         },
         Err(nb::Error::WouldBlock) => {},
         Err(nb::Error::Other(e)) => match e {

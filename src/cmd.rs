@@ -13,16 +13,18 @@ impl Cmd {
     }
 
     pub fn push(&mut self, b: u8) -> Option<&[u8]> {
-        if b == CR {
-            return None;
-        } else if b == LF {
-            let result = &self.buffer[0..self.pos];
-            self.pos = 0;
-            return Some(result);
+        if b == CR || b == LF {
+            if (self.pos == 0) {
+                None
+            } else {
+                let result = &self.buffer[0..self.pos];
+                self.pos = 0;
+                Some(result)
+            }
         } else {
             self.buffer[self.pos] = b;
             self.pos = (self.pos + 1) & (BUFFER_SIZE - 1);
-            return None;
+            None
         }
     }
 }
