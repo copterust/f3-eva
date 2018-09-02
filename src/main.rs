@@ -268,6 +268,7 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
             // first echo
             l.write_char(b as char);
             if let Some(word) = cmd.push(b) {
+                write!(l, "word: {:?}\r\n", word);
                 // koeffs are parsed as i32 for simplicity
                 parse!(word:
                        ["pitch_pwm=", pitch:i32] => {
