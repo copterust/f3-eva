@@ -4,6 +4,7 @@
 #![feature(core_intrinsics)]
 #![feature(panic_handler)]
 #![allow(unused)]
+#![feature(asm)]
 
 // internal
 mod ahrs;
@@ -80,9 +81,11 @@ exception!(SysTick, || {
 
 entry!(main);
 fn main() -> ! {
-    let device = hal::stm32f30x::Peripherals::take().unwrap();
+    // first things first
+    let mut bootloader = bootloader::stm32f30x::Bootloader::new();
+    bootloader.check_request();
     let core = cortex_m::Peripherals::take().unwrap();
-    let bootloader = bootloader::stm32f30x::Bootloader::new(core.SCB);
+    let device = hal::stm32f30x::Peripherals::take().unwrap();
 
     let mut rcc = device.RCC.constrain();
     let gpioa = device.GPIOA.split(&mut rcc.ahb);
