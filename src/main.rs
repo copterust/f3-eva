@@ -43,6 +43,7 @@ use hal::timer;
 use mpu9250::Mpu9250;
 use nalgebra::geometry::Quaternion;
 use nalgebra::Vector3;
+use nalgebra::clamp;
 use rt::{entry, exception, ExceptionFrame};
 
 #[cfg(not(any(feature = "usart2")))]
@@ -201,10 +202,11 @@ fn main() -> ! {
                 let rear_right = t - x_corr - y_corr - z_corr;
                 let pitch_cmd = pitch_pwm();
                 if 0 == pitch_cmd {
-                    m_rear_right.set_duty(rear_right as u32);
-                    m2_front_right.set_duty(front_right as u32);
-                    m3_rear_left.set_duty(rear_left as u32);
-                    m4_front_left.set_duty(front_left as u32);
+                    let mmax = m_rear_right.get_max_duty() as f32;
+                    m_rear_right.set_duty(clamp(rear_right, 0.0, mmax) as u32);
+                    m2_front_right.set_duty(clamp(front_right, 0.0, mmax) as u32);
+                    m3_rear_left.set_duty(clamp(rear_left, 0.0, mmax) as u32);
+                    m4_front_left.set_duty(clamp(front_left, 0.0, mmax) as u32);
                 } else {
                     m_rear_right.set_duty(pitch_cmd);
                     m3_rear_left.set_duty(pitch_cmd);
@@ -324,12 +326,15 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
         Err(nb::Error::WouldBlock) => {},
         Err(nb::Error::Other(e)) => match e {
             serial::Error::Overrun => {
+                write!(l, "read error: {:?}\r\n", e);
                 rx.clear_overrun_error();
             },
             serial::Error::Framing => {
+                write!(l, "read error: {:?}\r\n", e);
                 rx.clear_framing_error();
             },
             serial::Error::Noise => {
+                write!(l, "read error: {:?}\r\n", e);
                 rx.clear_noise_error();
             },
             _ => {
