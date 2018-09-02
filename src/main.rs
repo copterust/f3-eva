@@ -66,6 +66,7 @@ static mut D_KOEFF: f32 = 0.;
 static mut TOTAL_THRUST: f32 = 0.;
 
 static mut NOW_MS: u32 = 0;
+static mut PITCH_PWM: u32 = 0;
 
 fn now_ms() -> u32 {
     unsafe { core::ptr::read_volatile(&NOW_MS as *const u32) }
@@ -197,10 +198,23 @@ fn main() -> ! {
                 let front_right = t - x_corr + y_corr + z_corr;
                 let rear_left = t + x_corr - y_corr + z_corr;
                 let rear_right = t - x_corr - y_corr - z_corr;
-                m_rear_right.set_duty(rear_right as u32);
-                m2_front_right.set_duty(front_right as u32);
-                m3_rear_left.set_duty(rear_left as u32);
-                m4_front_left.set_duty(front_left as u32);
+                let pitch_cmd = pitch_pwm();
+                if 0 == pitch_cmd {
+                    m_rear_right.set_duty(rear_right as u32);
+                    m2_front_right.set_duty(front_right as u32);
+                    m3_rear_left.set_duty(rear_left as u32);
+                    m4_front_left.set_duty(front_left as u32);
+                } else {
+                    m_rear_right.set_duty(pitch_cmd);
+                    m3_rear_left.set_duty(pitch_cmd);
+                }
+                write!(l, "Pitch: {}\r\n", dcm.pitch);
+                write!(l, "Motors: {}, {}, {}, {}\r\n",
+                    m_rear_right.get_duty(),
+                    m2_front_right.get_duty(),
+                    m3_rear_left.get_duty(),
+                    m4_front_left.get_duty()
+                );
             },
             Err(e) => {
                 write!(l, "ahrs error: {:?}\r\n", e);
@@ -214,6 +228,10 @@ unsafe fn extract<T>(opt: &'static mut Option<T>) -> &'static mut T {
         Some(ref mut x) => &mut *x,
         None => panic!("extract"),
     }
+}
+
+fn pitch_pwm() -> u32 {
+    unsafe { PITCH_PWM }
 }
 
 fn total_thrust() -> f32 {
@@ -245,6 +263,12 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
             if let Some(word) = cmd.push(b) {
                 // koeffs are parsed as i32 for simplicity
                 parse!(word:
+                       ["pitch_pwm=", pitch:u32] => {
+                           unsafe {
+                               PITCH_PWM = pitch;
+                           };
+                           t = true;
+                       },
                        ["thrust=", thrust:i32] => {
                            unsafe {
                                TOTAL_THRUST = thrust as f32
