@@ -28,6 +28,9 @@ pub fn new(period: f32) -> PID {
 
 impl PID {
     pub fn set(&mut self, p: f32, i: f32, d: f32) {
+        self.Kp = p;
+        self.Ki = i;
+        self.Kd = d;
         self.g0 = self.Kp + self.Ki * self.T / 2.0 + self.Kd / self.T;
         self.g1 = -self.Kp + self.Ki * self.T / 2.0 - 2.0 * self.Kd / self.T;
         self.g2 = self.Kd / self.T;
