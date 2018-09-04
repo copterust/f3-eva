@@ -49,42 +49,6 @@ macro_rules! use_serial {
     };
 }
 
-macro_rules! when_arm {
-    (
-        $input:ident, $cmd: expr, $name:ident : Option<$ty:ty>
-    ) => {
-        let rest = &$input[$cmdvar.len()..];
-        let $name = utils::parse::<$ty, _>(rest).ok()
-    };
-}
-
-// $cmdvar:expr, $name:ident : $ty:ty => $code:block
-// :ident : Option<$ty:ty>
-// macro_rules! parse {
-
-//     ($input:ident, [$cmdvar:ident], $code:expr) => {
-//         if $input == $cmdvar.as_bytes() {
-//             $code;
-//         } else
-//     };
-//     (
-//         $input: ident:
-//         $([$($var:tt)+] => $code:expr),+
-//     ) => {
-//         $(
-//             parse!($input, [$($var)+], $code)
-//             // if $input.starts_with($cmdvar.as_bytes()) {
-//             //     let rest = &$input[$cmdvar.len()..];
-//             //     if let Ok($name) = utils::parse::<$ty, _>(rest) {
-//             //         $code
-//             //     }
-//             // } else
-//         )+
-//         // {
-//         // }
-//     }
-// }
-
 macro_rules! parse {
     (@cond $inp:ident $var:expr) => {
         $inp == $var.as_bytes()
