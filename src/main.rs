@@ -182,7 +182,7 @@ fn main() -> ! {
         let mut delta = 0.;
         let mut prev_err = 0.;
         match ahrs.estimate() {
-            Ok(dcm) => {
+            Ok((dcm, dt_s)) => {
                 // let x_err = 0. - g.x;
                 // let z_err = 0. - g.z;
                 let pk = pkoef();

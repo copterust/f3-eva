@@ -54,7 +54,7 @@ impl<SPI, NCS, E, F> AHRS<SPI, NCS, F>
         Ok(AHRS { mpu, dcmimu, accel_biases, last_measurement_ms, timer_ms })
     }
 
-    pub fn estimate(&mut self) -> Result<dcmimu::TaitBryanAngles, E> {
+    pub fn estimate(&mut self) -> Result<(dcmimu::EulerAngles, f32), E> {
         let meas = self.mpu.all()?;
         let t_ms = (self.timer_ms)();
         let dt_ms = t_ms.wrapping_sub(self.last_measurement_ms);
@@ -65,7 +65,7 @@ impl<SPI, NCS, E, F> AHRS<SPI, NCS, F>
 
         let res =
             self.dcmimu.update(vec_to_tuple(&gyro), vec_to_tuple(&accel), dt_s);
-        Ok(res)
+        Ok((res, dt_s))
     }
 }
 
