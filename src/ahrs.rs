@@ -22,18 +22,22 @@ use nalgebra::Vector3;
 // const M_SCALE_Z: f32 = 1.2;
 
 // TODO: make generic over Imu/Marg
-pub struct AHRS<SPI, NCS> {
+pub struct AHRS<SPI, NCS, F> {
     mpu: Mpu9250<SPI, NCS, mpu9250::Imu>,
     dcmimu: DCMIMU,
     accel_biases: Vector3<f32>,
+    last_measurement_ms: u32,
+    timer_ms: F,
 }
 
-impl<SPI, NCS, E> AHRS<SPI, NCS>
+impl<SPI, NCS, E, F> AHRS<SPI, NCS, F>
     where SPI: spi::Write<u8, Error = E> + spi::Transfer<u8, Error = E>,
-          NCS: OutputPin
+          NCS: OutputPin,
+          F: Fn<(), Output = u32>
 {
     pub fn create_calibrated<D>(mut mpu: Mpu9250<SPI, NCS, mpu9250::Imu>,
-                                delay: &mut D)
+                                delay: &mut D,
+                                timer_ms: F)
                                 -> Result<Self, mpu9250::Error<E>>
         where D: DelayMs<u8>
     {
@@ -46,13 +50,16 @@ impl<SPI, NCS, E> AHRS<SPI, NCS>
         // TODO: find real Z axis.
         accel_biases.z -= mpu9250::G;
         let dcmimu = DCMIMU::new();
-        Ok(AHRS { mpu, dcmimu, accel_biases })
+        let last_measurement_ms = timer_ms();
+        Ok(AHRS { mpu, dcmimu, accel_biases, last_measurement_ms, timer_ms })
     }
 
-    pub fn estimate(&mut self,
-                    dt_s: f32)
-                    -> Result<dcmimu::TaitBryanAngles, E> {
+    pub fn estimate(&mut self) -> Result<dcmimu::TaitBryanAngles, E> {
         let meas = self.mpu.all()?;
+        let t_ms = (self.timer_ms)();
+        let dt_ms = t_ms.wrapping_sub(self.last_measurement_ms);
+        let dt_s = dt_ms as f32 / 1000.0;
+        self.last_measurement_ms = t_ms;
         let accel = meas.accel - self.accel_biases;
         let gyro = meas.gyro;
 

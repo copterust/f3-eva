@@ -3,8 +3,9 @@
 #![no_main]
 #![feature(core_intrinsics)]
 #![feature(panic_handler)]
-#![allow(unused)]
 #![feature(asm)]
+#![feature(fn_traits, unboxed_closures)]
+#![allow(unused)]
 
 // internal
 mod ahrs;
@@ -126,7 +127,7 @@ fn main() -> ! {
     let mut mpu9250 =
         Mpu9250::imu_default(spi, ncs, &mut delay).expect("mpu error");
     let mut ahrs =
-        ahrs::AHRS::create_calibrated(mpu9250, &mut delay).expect("ahrs error");
+        ahrs::AHRS::create_calibrated(mpu9250, &mut delay, now_ms).expect("ahrs error");
     // MOTORS:
     // pa0 -- pa3
     let (ch1, ch2, ch3, ch4, mut timer2) =
@@ -177,14 +178,10 @@ fn main() -> ! {
     syst.enable_counter();
 
     write!(l, "max duty (arr): {}\r\n", max_duty);
-    let mut prev_t_ms = now_ms();
     loop {
         let mut delta = 0.;
         let mut prev_err = 0.;
-        let t_ms = now_ms();
-        let dt_ms = t_ms.wrapping_sub(prev_t_ms);
-        let dt_secs = dt_ms as f32 / 1000.0;
-        match ahrs.estimate(dt_secs) {
+        match ahrs.estimate() {
             Ok(dcm) => {
                 // let x_err = 0. - g.x;
                 // let z_err = 0. - g.z;
