@@ -13,10 +13,11 @@ opt-level = "s"
 lto = true
 codegen-units = 1
 incremental = false
+overflow-checks = false # libm
 
 [profile.release]
 panic = "abort"
-opt-level = "z"
+opt-level = 3
 codegen-units = 1
 debug = false
 lto = true
