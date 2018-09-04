@@ -77,3 +77,32 @@ macro_rules! parse {
         { }
     };
 }
+
+macro_rules! debug {
+    (
+        $($args:tt)+
+    ) => {
+        if cfg!(debuglog) {
+            write!($($args)+);
+        }
+    }
+}
+
+macro_rules! info {
+    (
+        $($args:tt)+
+    ) => {
+        if cfg!(infolog) {
+            write!($($args)+);
+        }
+    }
+}
+
+
+macro_rules! error {
+    (
+        $($args:tt)+
+    ) => {
+        write!($($args)+);
+    }
+}

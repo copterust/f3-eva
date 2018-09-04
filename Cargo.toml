@@ -49,6 +49,8 @@ default-features = false
 version = "0.16.0"
 
 [features]
-default = ["usart1"]
+default = ["usart1", "infolog"]
 usart1 = []
 usart2 = []
+infolog = []
+debuglog = []

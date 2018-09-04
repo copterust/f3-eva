@@ -109,7 +109,7 @@ fn main() -> ! {
 
     let beeper = gpioc.pc14.output().pull_type(PullNone);
     let mut l = logging::SerialLogger::new(tx, beeper);
-    write!(l, "Logger ok\r\n");
+    info!(l, "Logger ok\r\n");
     // XXX: split delay and pass to logger as well?
     let mut delay = Delay::new(core.SYST, clocks);
 
@@ -122,7 +122,7 @@ fn main() -> ! {
                               mpu9250::MODE,
                               1.mhz(),
                               clocks);
-    write!(l, "spi ok\r\n");
+    info!(l, "spi ok\r\n");
     // MPU
     let mut mpu9250 =
         Mpu9250::imu_default(spi, ncs, &mut delay).expect("mpu error");
@@ -146,7 +146,7 @@ fn main() -> ! {
     m3_rear_left.enable();
     m4_front_left.enable();
     timer2.enable();
-    write!(l, "motors ok\r\n");
+    info!(l, "motors ok\r\n");
 
     let esc = ESC::new();
     let motor = CorelessMotor::new();
@@ -160,7 +160,7 @@ fn main() -> ! {
     }
     let l = unsafe { extract(&mut L) };
 
-    write!(l, "init done\r\n");
+    info!(l, "init done\r\n");
     l.blink();
     unsafe { cortex_m::interrupt::enable() };
     let mut nvic = core.NVIC;
@@ -177,7 +177,7 @@ fn main() -> ! {
     syst.enable_interrupt();
     syst.enable_counter();
 
-    write!(l, "max duty (arr): {}\r\n", max_duty);
+    info!(l, "max duty (arr): {}\r\n", max_duty);
     loop {
         let mut delta = 0.;
         let mut prev_err = 0.;
@@ -185,6 +185,8 @@ fn main() -> ! {
             Ok((dcm, dt_s)) => {
                 // let x_err = 0. - g.x;
                 // let z_err = 0. - g.z;
+                debug!(l, "typr,{},{},{},{}\r\n", dt_s,
+                       dcm.yaw, dcm.roll, dcm.pitch);
                 let pk = pkoef();
                 let ik = ikoef();
                 let dk = dkoef();
@@ -215,15 +217,15 @@ fn main() -> ! {
                 unsafe {
                     if STATUS_REQ == true {
                         STATUS_REQ = false;
-                        write!(l, "Pitch: {}\r\n", dcm.pitch);
-                        write!(l,
+                        info!(l, "Pitch: {}\r\n", dcm.pitch);
+                        info!(l,
                                "Motors: {}, {}, {}, {} max {}\r\n",
                                m_rear_right.get_duty(),
                                m2_front_right.get_duty(),
                                m3_rear_left.get_duty(),
                                m4_front_left.get_duty(),
                                m4_front_left.get_max_duty());
-                        write!(l,
+                        info!(l,
                                "Tthrust: {}; dk: {}\r\n",
                                total_thrust(),
                                dkoef());
@@ -231,7 +233,7 @@ fn main() -> ! {
                 }
             },
             Err(e) => {
-                write!(l, "ahrs error: {:?}\r\n", e);
+                info!(l, "ahrs error: {:?}\r\n", e);
             },
         }
     }
@@ -317,20 +319,20 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
         Err(nb::Error::Other(e)) => {
             match e {
                 serial::Error::Overrun => {
-                    write!(l, "read error: {:?}\r\n", e);
+                    info!(l, "read error: {:?}\r\n", e);
                     rx.clear_overrun_error();
                 },
                 serial::Error::Framing => {
-                    write!(l, "read error: {:?}\r\n", e);
+                    info!(l, "read error: {:?}\r\n", e);
                     rx.clear_framing_error();
                 },
                 serial::Error::Noise => {
-                    write!(l, "read error: {:?}\r\n", e);
+                    info!(l, "read error: {:?}\r\n", e);
                     rx.clear_noise_error();
                 },
                 _ => {
                     l.blink();
-                    write!(l, "read error: {:?}\r\n", e);
+                    info!(l, "read error: {:?}\r\n", e);
                 },
             }
         },
@@ -361,23 +363,23 @@ fn panic(panic_info: &PanicInfo) -> ! {
             let payload = panic_info.payload().downcast_ref::<&str>();
             match (panic_info.location(), payload) {
                 (Some(location), Some(msg)) => {
-                    write!(l,
+                    error!(l,
                            "\r\npanic in file '{}' at line {}: {:?}\r\n",
                            location.file(),
                            location.line(),
                            msg);
                 },
                 (Some(location), None) => {
-                    write!(l,
+                    error!(l,
                            "panic in file '{}' at line {}",
                            location.file(),
                            location.line());
                 },
                 (None, Some(msg)) => {
-                    write!(l, "panic: {:?}", msg);
+                    error!(l, "panic: {:?}", msg);
                 },
                 (None, None) => {
-                    write!(l, "panic occured, no info available");
+                    error!(l, "panic occured, no info available");
                 },
             }
         },
