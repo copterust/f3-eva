@@ -2,3 +2,4 @@
 /Cargo.lock
 /expls
 /.dir-locals.el
+models/.ipynb_checkpoints/
