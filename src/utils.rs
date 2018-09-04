@@ -24,7 +24,7 @@ impl WallClockDelay for Delay {
 }
 
 // TODO: generify
-pub fn vec_to_tuple(inp: &Vector3<f32>) -> (f32, f32, f32) {
+pub fn vec_to_tuple<T: nalgebra::base::Scalar>(inp: &Vector3<T>) -> (T, T, T) {
     (inp.x, inp.y, inp.z)
 }
 
