@@ -43,9 +43,9 @@ use hal::stm32f30x::{self, interrupt, Interrupt};
 use hal::timer;
 
 use mpu9250::Mpu9250;
+use nalgebra::clamp;
 use nalgebra::geometry::Quaternion;
 use nalgebra::Vector3;
-use nalgebra::clamp;
 use rt::{entry, exception, ExceptionFrame};
 
 #[cfg(not(any(feature = "usart2")))]
@@ -204,7 +204,8 @@ fn main() -> ! {
                 if 0 == pitch_cmd {
                     let mmax = m_rear_right.get_max_duty() as f32;
                     m_rear_right.set_duty(clamp(rear_right, 0.0, mmax) as u32);
-                    m2_front_right.set_duty(clamp(front_right, 0.0, mmax) as u32);
+                    m2_front_right.set_duty(clamp(front_right, 0.0, mmax)
+                                            as u32);
                     m3_rear_left.set_duty(clamp(rear_left, 0.0, mmax) as u32);
                     m4_front_left.set_duty(clamp(front_left, 0.0, mmax) as u32);
                 } else {
@@ -215,15 +216,17 @@ fn main() -> ! {
                     if STATUS_REQ == true {
                         STATUS_REQ = false;
                         write!(l, "Pitch: {}\r\n", dcm.pitch);
-                        write!(l, "Motors: {}, {}, {}, {} max {}\r\n",
-                            m_rear_right.get_duty(),
-                            m2_front_right.get_duty(),
-                            m3_rear_left.get_duty(),
-                            m4_front_left.get_duty(),
-                            m4_front_left.get_max_duty()
-                        );
-                        write!(l, "Tthrust: {}; dk: {}\r\n",
-                               total_thrust(), dkoef());
+                        write!(l,
+                               "Motors: {}, {}, {}, {} max {}\r\n",
+                               m_rear_right.get_duty(),
+                               m2_front_right.get_duty(),
+                               m3_rear_left.get_duty(),
+                               m4_front_left.get_duty(),
+                               m4_front_left.get_max_duty());
+                        write!(l,
+                               "Tthrust: {}; dk: {}\r\n",
+                               total_thrust(),
+                               dkoef());
                     }
                 }
             },
