@@ -314,23 +314,25 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
             }
         },
         Err(nb::Error::WouldBlock) => {},
-        Err(nb::Error::Other(e)) => match e {
-            serial::Error::Overrun => {
-                write!(l, "read error: {:?}\r\n", e);
-                rx.clear_overrun_error();
-            },
-            serial::Error::Framing => {
-                write!(l, "read error: {:?}\r\n", e);
-                rx.clear_framing_error();
-            },
-            serial::Error::Noise => {
-                write!(l, "read error: {:?}\r\n", e);
-                rx.clear_noise_error();
-            },
-            _ => {
-                l.blink();
-                write!(l, "read error: {:?}\r\n", e);
-            },
+        Err(nb::Error::Other(e)) => {
+            match e {
+                serial::Error::Overrun => {
+                    write!(l, "read error: {:?}\r\n", e);
+                    rx.clear_overrun_error();
+                },
+                serial::Error::Framing => {
+                    write!(l, "read error: {:?}\r\n", e);
+                    rx.clear_framing_error();
+                },
+                serial::Error::Noise => {
+                    write!(l, "read error: {:?}\r\n", e);
+                    rx.clear_noise_error();
+                },
+                _ => {
+                    l.blink();
+                    write!(l, "read error: {:?}\r\n", e);
+                },
+            }
         },
     };
 }
