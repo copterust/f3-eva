@@ -9,6 +9,7 @@ use mpu9250::Mpu9250;
 use nalgebra::geometry::Quaternion;
 use nalgebra::Vector3;
 
+
 // Magnetometer calibration parameters
 // NOTE you need to use the right parameters for *your* magnetometer
 // You can use the `log-sensors` example to calibrate your magnetometer. The
@@ -54,18 +55,28 @@ impl<SPI, NCS, E, F> AHRS<SPI, NCS, F>
         Ok(AHRS { mpu, dcmimu, accel_biases, last_measurement_ms, timer_ms })
     }
 
-    pub fn estimate(&mut self) -> Result<(dcmimu::EulerAngles, f32), E> {
+    pub fn estimate<W>(&mut self, l: &mut W) -> Result<(dcmimu::EulerAngles,
+                                                        Vector3<f32>,
+                                                        f32), E>
+    where W: core::fmt::Write
+    {
         let meas = self.mpu.all()?;
         let t_ms = (self.timer_ms)();
         let dt_ms = t_ms.wrapping_sub(self.last_measurement_ms);
         let dt_s = dt_ms as f32 / 1000.0;
         self.last_measurement_ms = t_ms;
         let accel = meas.accel - self.accel_biases;
-        let gyro = meas.gyro;
+        let mut gyro = meas.gyro;
 
-        let res =
+        let (dcm, gyro_biases) =
             self.dcmimu.update(vec_to_tuple(&gyro), vec_to_tuple(&accel), dt_s);
-        Ok((res, dt_s))
+        let gyro_biases =
+            Vector3::new(gyro_biases.x, gyro_biases.y, gyro_biases.z);
+        gyro = gyro - gyro_biases;
+        debug!(l, "typrxyz,{},{},{},{},{},{},{}\r\n", dt_s,
+                dcm.yaw, dcm.pitch, dcm.roll,
+                gyro.x, gyro.y, gyro.z);
+        Ok((dcm, gyro, dt_s))
     }
 }
 

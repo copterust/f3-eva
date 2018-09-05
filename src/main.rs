@@ -8,7 +8,7 @@
 #![allow(unused)]
 
 // internal
-mod ahrs;
+mod utils;
 mod bootloader;
 mod cmd;
 mod constants;
@@ -17,7 +17,7 @@ mod logging;
 mod motor;
 #[macro_use]
 mod toolbox;
-mod utils;
+mod ahrs;
 
 // internal imports
 use crate::bootloader::Bootloader;
@@ -64,12 +64,14 @@ static mut ESC: Option<ESC> = None;
 static mut MOTORS: Option<CorelessMotor> = None;
 
 static mut P_KOEFF: f32 = 0.;
+static mut PITCH_KOEFF: f32 = 0.;
+static mut YAW_KOEFF: f32 = 0.;
+static mut ROLL_KOEFF: f32 = 0.;
 static mut I_KOEFF: f32 = 0.;
 static mut D_KOEFF: f32 = 0.;
 static mut TOTAL_THRUST: f32 = 0.;
 
 static mut NOW_MS: u32 = 0;
-static mut PITCH_PWM: u32 = 0;
 static mut STATUS_REQ: bool = false;
 
 fn now_ms() -> u32 {
@@ -167,7 +169,7 @@ fn main() -> ! {
     nvic.enable(serial_int);
 
     delay.wc_delay_ms(2000);
-    let max_duty = m_rear_right.get_max_duty();
+    let max_duty = m_rear_right.get_max_duty() as f32;
 
     // Set systick to fire every ms
     let mut syst = delay.free();
@@ -179,56 +181,67 @@ fn main() -> ! {
 
     info!(l, "max duty (arr): {}\r\n", max_duty);
     loop {
-        let mut delta = 0.;
-        let mut prev_err = 0.;
-        match ahrs.estimate() {
-            Ok((dcm, dt_s)) => {
+        let mut delta_y = 0.;
+        let mut delta_x = 0.;
+        let mut delta_z = 0.;
+        let mut prev_err_x = 0.;
+        let mut prev_err_y = 0.;
+        let mut prev_err_z = 0.;
+        match ahrs.estimate(l) {
+            Ok((dcm, biased_gyro, dt_s)) => {
                 // let x_err = 0. - g.x;
                 // let z_err = 0. - g.z;
-                debug!(l, "typr,{},{},{},{}\r\n", dt_s,
-                       dcm.yaw, dcm.roll, dcm.pitch);
+                // body rate ctrl
                 let pk = pkoef();
                 let ik = ikoef();
                 let dk = dkoef();
-                let y_err = 0. - dcm.pitch;
+                // pitch-roll ctrl
+                let pitch_err = 0. - dcm.pitch;
+                let pitch_u = pitch_err * pitch_pkoef();
+                let yaw_err = 0. - dcm.yaw;
+                let yaw_u = yaw_err * yaw_pkoef();
+                let roll_err = 0. - dcm.roll;
+                let roll_u = roll_err * roll_pkoef();
+                let x_err = roll_u - biased_gyro.x;
+                let y_err = pitch_u - biased_gyro.y;
+                let z_err = yaw_u - biased_gyro.z;
                 let i_comp = 0.;
-                delta = y_err - prev_err;
-                let y_corr = y_err * pk + i_comp * ik + dk * delta;
-                prev_err = y_err;
-                let x_corr = 0.;
-                let z_corr = 0.;
+                delta_x = x_err - prev_err_x;
+                delta_y = y_err - prev_err_y;
+                delta_z = z_err - prev_err_z;
+                let x_corr = x_err * pk + i_comp * ik + dk * delta_x;
+                let y_corr = y_err * pk + i_comp * ik + dk * delta_y;
+                let z_corr = 0.; // z_err * pk + i_comp * ik + dk * delta_z;
+                prev_err_x = x_err;
+                prev_err_y = y_err;
+                prev_err_z = z_err;
                 let t = total_thrust();
-                let front_left = t + x_corr + y_corr - z_corr;
-                let front_right = t - x_corr + y_corr + z_corr;
-                let rear_left = t + x_corr - y_corr + z_corr;
-                let rear_right = t - x_corr - y_corr - z_corr;
-                let pitch_cmd = pitch_pwm();
-                if 0 == pitch_cmd {
-                    let mmax = m_rear_right.get_max_duty() as f32;
-                    m_rear_right.set_duty(clamp(rear_right, 0.0, mmax) as u32);
-                    m2_front_right.set_duty(clamp(front_right, 0.0, mmax)
-                                            as u32);
-                    m3_rear_left.set_duty(clamp(rear_left, 0.0, mmax) as u32);
-                    m4_front_left.set_duty(clamp(front_left, 0.0, mmax) as u32);
-                } else {
-                    m_rear_right.set_duty(pitch_cmd);
-                    m3_rear_left.set_duty(pitch_cmd);
-                }
+                let front_left = t - x_corr + y_corr - z_corr;
+                let front_right = t + x_corr + y_corr + z_corr;
+                let rear_left = t - x_corr - y_corr + z_corr;
+                let rear_right = t + x_corr - y_corr - z_corr;
+                m_rear_right.set_duty(clamp(rear_right, 0.0, max_duty) as u32);
+                m2_front_right.set_duty(clamp(front_right, 0.0, max_duty) as u32);
+                m3_rear_left.set_duty(clamp(rear_left, 0.0, max_duty) as u32);
+                m4_front_left.set_duty(clamp(front_left, 0.0, max_duty) as u32);
                 unsafe {
                     if STATUS_REQ == true {
                         STATUS_REQ = false;
-                        info!(l, "Pitch: {}\r\n", dcm.pitch);
+                        info!(l, "dcm: {:?}; gyro: {:?}\r\n", dcm, biased_gyro);
                         info!(l,
-                               "Motors: {}, {}, {}, {} max {}\r\n",
-                               m_rear_right.get_duty(),
-                               m2_front_right.get_duty(),
-                               m3_rear_left.get_duty(),
-                               m4_front_left.get_duty(),
-                               m4_front_left.get_max_duty());
+                              "Motors: {}, {}, {}, {} max {}\r\n",
+                              m_rear_right.get_duty(),
+                              m2_front_right.get_duty(),
+                              m3_rear_left.get_duty(),
+                              m4_front_left.get_duty(),
+                              m4_front_left.get_max_duty());
                         info!(l,
-                               "Tthrust: {}; dk: {}\r\n",
-                               total_thrust(),
-                               dkoef());
+                              "Tthrust: {}; pk: {}; pipk: {}; ypk: {}; rpk: {}\r\n",
+                              total_thrust(),
+                              pkoef(),
+                              pitch_pkoef(),
+                              yaw_pkoef(),
+                              roll_pkoef());
                     }
                 }
             },
@@ -246,16 +259,24 @@ unsafe fn extract<T>(opt: &'static mut Option<T>) -> &'static mut T {
     }
 }
 
-fn pitch_pwm() -> u32 {
-    unsafe { PITCH_PWM }
-}
-
 fn total_thrust() -> f32 {
     unsafe { TOTAL_THRUST }
 }
 
 fn pkoef() -> f32 {
     unsafe { P_KOEFF }
+}
+
+fn pitch_pkoef() -> f32 {
+    unsafe { PITCH_KOEFF }
+}
+
+fn yaw_pkoef() -> f32 {
+    unsafe { YAW_KOEFF }
+}
+
+fn roll_pkoef() -> f32 {
+    unsafe { ROLL_KOEFF }
 }
 
 fn ikoef() -> f32 {
@@ -278,11 +299,6 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
             if let Some(word) = cmd.push(b) {
                 // koeffs are parsed as i32 for simplicity
                 parse!(word:
-                       ["pitch_pwm=", pitch:i32] => {
-                           unsafe {
-                               PITCH_PWM = pitch as u32;
-                           };
-                       },
                        ["thrust=", thrust:i32] => {
                            unsafe {
                                TOTAL_THRUST = thrust as f32
@@ -296,6 +312,21 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
                        ["pk=", pk:i32] => {
                            unsafe {
                                P_KOEFF = pk as f32
+                           };
+                       },
+                       ["pipk=", pipk:i32] => {
+                           unsafe {
+                               PITCH_KOEFF = pipk as f32
+                           };
+                       },
+                       ["ypk=", ypk:i32] => {
+                           unsafe {
+                               YAW_KOEFF = ypk as f32
+                           };
+                       },
+                       ["rpk=", rpk:i32] => {
+                           unsafe {
+                               ROLL_KOEFF = rpk as f32
                            };
                        },
                        ["ik=", ik:i32] => {
