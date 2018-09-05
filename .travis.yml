@@ -9,7 +9,8 @@ install:
   - rustup target add thumbv7em-none-eabihf
 
 script:
-  - cargo build --verbose
+  - make usart=1
+  - make usart=2 log=debug
 
 cache: cargo
 before_cache:
