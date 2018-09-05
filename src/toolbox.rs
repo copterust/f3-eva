@@ -82,7 +82,7 @@ macro_rules! debug {
     (
         $($args:tt)+
     ) => {
-        if cfg!(debuglog) {
+        if cfg!(feature = "debuglog") {
             write!($($args)+);
         }
     }
@@ -92,12 +92,11 @@ macro_rules! info {
     (
         $($args:tt)+
     ) => {
-        if cfg!(infolog) || cfg!(debuglog) {
+        if cfg!(feature = "infolog") || cfg!(feature = "debuglog") {
             write!($($args)+);
         }
     }
 }
-
 
 macro_rules! error {
     (

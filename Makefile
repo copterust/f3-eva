@@ -3,8 +3,8 @@ target := $(shell grep "target =" .cargo/config | awk '{ print $$3 }' | tr -d '"
 release :=
 MODE := $(if $(release),release,debug)
 RELEASE_FLAG := $(if $(release),--release,)
-usart := "usart1"
-log := "info"
+usart := 1
+log := info
 fea :=
 FEATURES := "--features=$(log)log,usart$(usart),$(fea)"
 

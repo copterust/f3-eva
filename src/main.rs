@@ -48,7 +48,7 @@ use nalgebra::geometry::Quaternion;
 use nalgebra::Vector3;
 use rt::{entry, exception, ExceptionFrame};
 
-#[cfg(not(any(feature = "usart2")))]
+#[cfg(feature = "usart1")]
 use_serial!(USART1, usart_int, state: Option<Cmd> = None);
 #[cfg(feature = "usart2")]
 use_serial!(USART2, usart_int, state: Option<Cmd> = None);
