@@ -25,12 +25,15 @@ $(BIN).bin: $(BIN)
 	arm-none-eabi-objcopy -S -O binary $(BIN) $(BIN).bin
 
 build:
-	cargo -v build $(RELEASE_FLAG) --bin $(NAME) $(FEATURES) $(USART_FEA) $(LOG_FEA)
+	cargo -v build $(RELEASE_FLAG) --bin $(NAME) $(FEATURES)
 
 flash: $(BIN).bin
 	python2 ./loader/stm32loader.py -b 115200 -p $(TTY) -f F3 -e -w $(BIN).bin
 
 load: flash
+
+boad: build
+	bobbin -v load $(RELEASE_FLAG) --bin $(NAME) $(FEATURES)
 
 clean:
 	cargo -v clean
