@@ -1,10 +1,13 @@
 NAME := f3_eva
 target := $(shell grep "target =" .cargo/config | awk '{ print $$3 }' | tr -d '"')
-fea :=
-FEATURES := $(if $(fea),"--features=$(fea)",)
 release :=
 MODE := $(if $(release),release,debug)
 RELEASE_FLAG := $(if $(release),--release,)
+usart := "usart1"
+log := "info"
+fea :=
+FEATURES := "--features=$(log)log,usart$(usart),$(fea)"
+
 TARGET_PATH := ./target/$(target)/$(MODE)
 BIN := $(TARGET_PATH)/$(NAME)
 
@@ -22,7 +25,7 @@ $(BIN).bin: $(BIN)
 	arm-none-eabi-objcopy -S -O binary $(BIN) $(BIN).bin
 
 build:
-	cargo -v build $(RELEASE_FLAG) --bin $(NAME) $(FEATURES)
+	cargo -v build $(RELEASE_FLAG) --bin $(NAME) $(FEATURES) $(USART_FEA) $(LOG_FEA)
 
 flash: $(BIN).bin
 	python2 ./loader/stm32loader.py -b 115200 -p $(TTY) -f F3 -e -w $(BIN).bin

@@ -92,7 +92,7 @@ macro_rules! info {
     (
         $($args:tt)+
     ) => {
-        if cfg!(infolog) {
+        if cfg!(infolog) || cfg!(debuglog) {
             write!($($args)+);
         }
     }
