@@ -1,14 +1,27 @@
 use core::f32::consts::PI;
-use nalgebra::{Vector3, norm};
+use nalgebra::{Vector2, Vector3, norm};
 
+/// Nonlinear drone controller
 struct Controller {
+    /// P-coefficient for yaw controller
     KpYaw: f32,
+    /// P-coefficients for body-rate controller
     KpPQR: Vector3,
+    /// Maximal torque
     max_torque: f32,
+    /// Vehicle's moment of inertia about three axes
     MOI: Vector3,
 }
 
 impl Controller {
+    /// Roll-pitch controller.
+    /// cmd: target acceleration (north, east)
+    /// attitude: roll, pitch, yaw
+    /// Returns pitch and roll rates for desired north/east acceleration
+    pub fn roll_pitch(self, cmd: Vector2, attitude: Vector3, thrust: f32) -> Vector2 {
+
+    }
+
     /// Body-rate controller.
     /// Gets: target body rates and actual ones
     /// Returns: roll, pitch and yaw moments in N*m
