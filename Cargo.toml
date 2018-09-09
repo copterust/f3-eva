@@ -25,15 +25,11 @@ incremental = false # nalgebra
 
 [dependencies]
 nb = "0.1.1"
-cortex-m = {version = "0.5.6", features = ["inline-asm", "const-fn"]}
-stm32f30x = {version = "0.7.0", features = ["rt"]}
+cortex-m = {version = "0.5.7", features = ["inline-asm", "const-fn"]}
 mpu9250 = "0.6.3"
 libm = "0.1.2"
 dcmimu = "0.2.1"
-
-[dependencies.rt]
-version = "0.5.3"
-package = "cortex-m-rt"
+cortex-m-rt = "0.6.3"
 
 [dependencies.ehal]
 features = ["unproven"]
@@ -41,8 +37,9 @@ version = "0.2.1"
 package = "embedded-hal"
 
 [dependencies.hal]
-version = "0.8.1"
+version = "0.8.3"
 package = "alt-stm32f30x-hal"
+features = ["rt"]
 
 [dependencies.nalgebra]
 default-features = false

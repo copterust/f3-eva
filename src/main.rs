@@ -2,19 +2,18 @@
 #![no_std]
 #![no_main]
 #![feature(core_intrinsics)]
-#![feature(panic_handler)]
 #![feature(asm)]
 #![feature(fn_traits, unboxed_closures)]
 #![allow(unused)]
 
 // internal
-mod utils;
 mod bootloader;
 mod cmd;
 mod constants;
 mod esc;
 mod logging;
 mod motor;
+mod utils;
 #[macro_use]
 mod toolbox;
 mod ahrs;
@@ -42,11 +41,11 @@ use hal::spi::Spi;
 use hal::stm32f30x::{self, interrupt, Interrupt};
 use hal::timer;
 
+use cortex_m_rt::{entry, exception, ExceptionFrame};
 use mpu9250::Mpu9250;
 use nalgebra::clamp;
 use nalgebra::geometry::Quaternion;
 use nalgebra::Vector3;
-use rt::{entry, exception, ExceptionFrame};
 
 #[cfg(feature = "usart1")]
 use_serial!(USART1, usart_int, state: Option<Cmd> = None);
@@ -78,11 +77,14 @@ fn now_ms() -> u32 {
     unsafe { core::ptr::read_volatile(&NOW_MS as *const u32) }
 }
 
-exception!(SysTick, || {
-    NOW_MS = NOW_MS.wrapping_add(1);
-});
+#[exception]
+fn SysTick() {
+    unsafe {
+        NOW_MS = NOW_MS.wrapping_add(1);
+    }
+}
 
-entry!(main);
+#[entry]
 fn main() -> ! {
     // first things first
     let mut bootloader = bootloader::stm32f30x::Bootloader::new();
@@ -221,7 +223,8 @@ fn main() -> ! {
                 let rear_left = t - x_corr - y_corr + z_corr;
                 let rear_right = t + x_corr - y_corr - z_corr;
                 m_rear_right.set_duty(clamp(rear_right, 0.0, max_duty) as u32);
-                m2_front_right.set_duty(clamp(front_right, 0.0, max_duty) as u32);
+                m2_front_right.set_duty(clamp(front_right, 0.0, max_duty)
+                                        as u32);
                 m3_rear_left.set_duty(clamp(rear_left, 0.0, max_duty) as u32);
                 m4_front_left.set_duty(clamp(front_left, 0.0, max_duty) as u32);
                 unsafe {
@@ -379,13 +382,15 @@ fn usart_int(state: &mut Option<cmd::Cmd>) {
     }
 }
 
-exception!(HardFault, |ef| {
+#[exception]
+fn HardFault(ef: &ExceptionFrame) -> ! {
     panic!("HardFault at {:#?}", ef);
-});
+}
 
-exception!(*, |irqn| {
+#[exception]
+fn DefaultHandler(irqn: i16) {
     panic!("Unhandled exception (IRQn = {})", irqn);
-});
+}
 
 #[panic_handler]
 fn panic(panic_info: &PanicInfo) -> ! {
