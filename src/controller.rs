@@ -40,7 +40,7 @@ impl Controller {
 
         let mut v_cmd = self.KpAlt * (target_alt - altitude);
         v_cmd += target_vertical_velocity;
-        v_cmd = clamp(dot_cmd, -self.MaxDescentRate, self.MaxAscentRate);
+        v_cmd = clamp(v_cmd, -self.MaxDescentRate, self.MaxAscentRate);
         let acc_cmd = feed_forward_acceleration;
         acc_cmd += self.KpAltAcc * (v_cmd - vertical_velocity);
         let thrust = self.Mass * acc_cmd / (cos(attitude[0]) * cos(attitude[1]);
