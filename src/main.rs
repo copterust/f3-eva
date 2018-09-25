@@ -78,10 +78,8 @@ fn now_ms() -> u32 {
 }
 
 #[exception]
-fn SysTick() {
-    unsafe {
-        NOW_MS = NOW_MS.wrapping_add(1);
-    }
+unsafe fn SysTick() {
+    NOW_MS = NOW_MS.wrapping_add(1);
 }
 
 #[entry]
@@ -350,25 +348,23 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
             }
         },
         Err(nb::Error::WouldBlock) => {},
-        Err(nb::Error::Other(e)) => {
-            match e {
-                serial::Error::Overrun => {
-                    info!(l, "read error: {:?}\r\n", e);
-                    rx.clear_overrun_error();
-                },
-                serial::Error::Framing => {
-                    info!(l, "read error: {:?}\r\n", e);
-                    rx.clear_framing_error();
-                },
-                serial::Error::Noise => {
-                    info!(l, "read error: {:?}\r\n", e);
-                    rx.clear_noise_error();
-                },
-                _ => {
-                    l.blink();
-                    info!(l, "read error: {:?}\r\n", e);
-                },
-            }
+        Err(nb::Error::Other(e)) => match e {
+            serial::Error::Overrun => {
+                info!(l, "read error: {:?}\r\n", e);
+                rx.clear_overrun_error();
+            },
+            serial::Error::Framing => {
+                info!(l, "read error: {:?}\r\n", e);
+                rx.clear_framing_error();
+            },
+            serial::Error::Noise => {
+                info!(l, "read error: {:?}\r\n", e);
+                rx.clear_noise_error();
+            },
+            _ => {
+                l.blink();
+                info!(l, "read error: {:?}\r\n", e);
+            },
         },
     };
 }
