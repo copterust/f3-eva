@@ -26,7 +26,7 @@ incremental = false # nalgebra
 [dependencies]
 nb = "0.1.1"
 cortex-m = {version = "0.5.7", features = ["inline-asm", "const-fn"]}
-mpu9250 = "0.6.3"
+mpu9250 = "0.6.4"
 libm = "0.1.2"
 dcmimu = "0.2.1"
 cortex-m-rt = "0.6.4"
@@ -43,7 +43,7 @@ features = ["rt"]
 
 [dependencies.nalgebra]
 default-features = false
-version = "0.16.0"
+version = "0.16.4"
 
 [features]
 usart1 = []
