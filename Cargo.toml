@@ -29,7 +29,7 @@ cortex-m = {version = "0.5.7", features = ["inline-asm", "const-fn"]}
 mpu9250 = "0.6.4"
 libm = "0.1.2"
 dcmimu = "0.2.1"
-cortex-m-rt = "0.6.4"
+cortex-m-rt = "0.6.5"
 
 [dependencies.ehal]
 features = ["unproven"]
