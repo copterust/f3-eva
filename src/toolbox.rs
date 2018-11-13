@@ -93,7 +93,7 @@ macro_rules! info {
         $($args:tt)+
     ) => {
         if cfg!(feature = "infolog") || cfg!(feature = "debuglog") {
-            write!($($args)+);
+            write!($($args)+).unwrap();
         }
     }
 }
@@ -102,6 +102,6 @@ macro_rules! error {
     (
         $($args:tt)+
     ) => {
-        write!($($args)+);
+        write!($($args)+).unwrap();
     }
 }
