@@ -17,6 +17,7 @@ mod utils;
 #[macro_use]
 mod toolbox;
 mod ahrs;
+mod altitude;
 
 // internal imports
 use crate::bootloader::Bootloader;
@@ -44,8 +45,12 @@ use hal::timer;
 use cortex_m_rt::{entry, exception, ExceptionFrame};
 use mpu9250::Mpu9250;
 use nalgebra::clamp;
-use nalgebra::geometry::Quaternion;
-use nalgebra::Vector3;
+use nalgebra::{Vector3, Vector2};
+
+use bmp280::{self, BMP280};
+// use lsm303c::Lsm303c;
+use vl53l0x;
+use shared_bus::CortexMBusManager as SharedBus;
 
 #[cfg(feature = "usart1")]
 use_serial!(USART1, usart_int, state: Option<Cmd> = None);
@@ -130,6 +135,23 @@ fn main() -> ! {
         Mpu9250::imu_default(spi, ncs, &mut delay).expect("mpu error");
     let mut ahrs =
         ahrs::AHRS::create_calibrated(mpu9250, &mut delay, now_ms).expect("ahrs error");
+    // i2c stuff, sensors
+    let i2c = device.I2C2.i2c((gpioa.pa9, gpioa.pa10), 400.khz(), clocks);
+    info!(l, "i2c ok\r\n");
+    let bus = SharedBus::new(i2c);
+    info!(l, "i2c shared\r\n");
+    // lsm
+    // let mut lsm303 = Lsm303c::default(bus.acquire()).expect("lsm error");
+    // info!(l, "lsm ok\r\n");
+    // bmp
+    let mut bmp = BMP280::new(bus.acquire()).expect("bmp error");
+    info!(l, "bmp created\r\n");
+    // tof
+    let mut tof = vl53l0x::VL53L0x::new(bus.acquire()).expect("vl");
+    info!(l, "vl ok\r\n");
+    tof.set_measurement_timing_budget(200000).expect("timbudg");
+    info!(l, "meas budget set; start cont \r\n");
+    tof.start_continuous(0).expect("start cont");
     // MOTORS:
     // pa0 -- pa3
     let (ch1, ch2, ch3, ch4, mut timer2) =
@@ -161,7 +183,6 @@ fn main() -> ! {
         MOTORS = Some(motor);
     }
     let l = unsafe { extract(&mut L) };
-
     info!(l, "init done\r\n");
     l.blink();
     unsafe { cortex_m::interrupt::enable() };
@@ -180,6 +201,7 @@ fn main() -> ! {
     syst.enable_counter();
 
     info!(l, "max duty (arr): {}\r\n", max_duty);
+    let mut ekf = altitude::AslEkf::new();
     loop {
         let mut delta_y = 0.;
         let mut delta_x = 0.;
@@ -227,8 +249,22 @@ fn main() -> ! {
                 m4_front_left.set_duty(clamp(front_left, 0.0, max_duty) as u32);
                 unsafe {
                     if STATUS_REQ == true {
+                        let mut fused: f32 = 0.;
+                        let dist_err = tof.read_range_continuous_millimeters();
+                        let pressure = bmp.pressure_one_shot();
+                        match (dist_err) {
+                            Ok(dist) => {
+                                fused = ekf.step(Vector2::new(pressure as f32, dist as f32))[0];
+                            },
+                            Err(e) => {
+                                info!(l, "dist error: {:?}\r\n", e);
+                            }
+                        };
                         STATUS_REQ = false;
-                        info!(l, "dcm: {:?}; gyro: {:?}\r\n", dcm, biased_gyro);
+                        info!(l, "dcm: {:?}; gyro: {:?}; fused: {:?}\r\n",
+                              dcm,
+                              biased_gyro,
+                              fused);
                         info!(l,
                               "Motors: {}, {}, {}, {} max {}\r\n",
                               m_rear_right.get_duty(),
