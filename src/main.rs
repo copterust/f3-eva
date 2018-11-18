@@ -247,14 +247,17 @@ fn main() -> ! {
                                         as u32);
                 m3_rear_left.set_duty(clamp(rear_left, 0.0, max_duty) as u32);
                 m4_front_left.set_duty(clamp(front_left, 0.0, max_duty) as u32);
+                let mut old_dist:u16 = 0;
                 unsafe {
                     if STATUS_REQ == true {
                         let mut fused: f32 = 0.;
-                        let dist_err = tof.read_range_continuous_millimeters();
+                        let dist_err = tof.read_range_mm();
                         let pressure = bmp.pressure_one_shot();
                         match (dist_err) {
                             Ok(dist) => {
-                                fused = ekf.step(Vector2::new(pressure as f32, dist as f32))[0];
+                                old_dist = dist;
+                                fused = ekf.step(Vector2::new(pressure as f32,
+                                                              old_dist as f32))[0];
                             },
                             Err(e) => {
                                 info!(l, "dist error: {:?}\r\n", e);
