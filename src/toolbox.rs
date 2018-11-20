@@ -22,6 +22,24 @@ macro_rules! _init_serial {
     };
 }
 
+macro_rules! _init_i2c {
+    (USART1,
+     $device:ident,
+     $gp: ident,
+     $br: expr,
+     $clocks: expr) => {
+        $device.I2C1.i2c(($gp.pa15, $gp.pa14), $br, $clocks)
+    };
+    (USART2,
+     $device:ident,
+     $gp: ident,
+     $br: expr,
+     $clocks: expr) => {
+        $device.I2C2.i2c(($gp.pa9, $gp.pa10), $br, $clocks)
+    };
+}
+
+
 macro_rules! _inter {
     (USART1, $p: path, $st: ty, $is: expr) => {
         interrupt!(USART1_EXTI25, usart_int, state: $st = $is);
@@ -44,6 +62,15 @@ macro_rules! use_serial {
              $clocks: expr
             ) => {
                 _init_serial!($u, $device, $gp, $br, $clocks)
+            };
+        }
+        macro_rules! init_i2c {
+            ($device:ident,
+             $gp:ident,
+             $br: expr,
+             $clocks: expr
+            ) => {
+                _init_i2c!($u, $device, $gp, $br, $clocks)
             };
         }
     };

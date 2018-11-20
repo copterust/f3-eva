@@ -136,7 +136,8 @@ fn main() -> ! {
     let mut ahrs =
         ahrs::AHRS::create_calibrated(mpu9250, &mut delay, now_ms).expect("ahrs error");
     // i2c stuff, sensors
-    let i2c = device.I2C2.i2c((gpioa.pa9, gpioa.pa10), 400.khz(), clocks);
+    let i2c = init_i2c!(device, gpioa, 400.khz(), clocks);
+        // device.I2C2.i2c((gpioa.pa9, gpioa.pa10), 400.khz(), clocks);
     info!(l, "i2c ok\r\n");
     let bus = SharedBus::new(i2c);
     info!(l, "i2c shared\r\n");
