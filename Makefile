@@ -25,7 +25,7 @@ $(BIN).bin: $(BIN)
 	arm-none-eabi-objcopy -S -O binary $(BIN) $(BIN).bin
 
 build:
-	cargo -v build $(RELEASE_FLAG) --bin $(NAME) $(FEATURES)
+	cargo -v build $(RELEASE_FLAG) --bin $(NAME) --no-default-features $(FEATURES)
 
 flash: $(BIN).bin
 	python2 ./loader/stm32loader.py -b 115200 -p $(TTY) -f F3 -e -w $(BIN).bin
