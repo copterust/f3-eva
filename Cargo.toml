@@ -1,5 +1,3 @@
-cargo-features = ["rename-dependency"]
-
 [package]
 name = "f3_eva"
 version = "0.1.0"
@@ -31,7 +29,7 @@ libm = "0.1.2"
 dcmimu = "0.2.1"
 cortex-m-rt = "0.6.5"
 lsm303c = "0.1.5"
-bmp280 = {version = "0.0.2", package="bmp280-ehal"}
+bmp280 = {version = "0.0.3", package="bmp280-ehal"}
 shared-bus = {version = "0.1.2", features = ["cortexm"]}
 vl53l0x = "0.2.0"
 

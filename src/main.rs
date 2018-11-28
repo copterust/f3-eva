@@ -42,6 +42,7 @@ use hal::serial::{self, Rx, Serial, Tx};
 use hal::spi::Spi;
 use hal::stm32f30x::{self, interrupt, Interrupt};
 use hal::timer;
+use ehal;
 
 use cortex_m_rt::{entry, exception, ExceptionFrame};
 use mpu9250::Mpu9250;
@@ -77,10 +78,16 @@ static mut YAW_KOEFF: f32 = 0.;
 static mut ROLL_KOEFF: f32 = 0.;
 static mut I_KOEFF: f32 = 0.;
 static mut D_KOEFF: f32 = 0.;
+static mut PRES_KOEFF: f32 = 0.;
 static mut TOTAL_THRUST: f32 = 0.;
 
 static mut NOW_MS: u32 = 0;
 static mut STATUS_REQ: bool = false;
+
+pub const START_THRUST: f32 = 900.;
+pub const MAX_THRUST: f32 = 1800.;
+pub const G: f32 = 9.81;
+pub const RHO: f32 = 1.292;
 
 fn now_ms() -> u32 {
     unsafe { core::ptr::read_volatile(&NOW_MS as *const u32) }
@@ -141,7 +148,6 @@ fn main() -> ! {
         ahrs::AHRS::create_calibrated(mpu9250, &mut delay, now_ms).expect("ahrs error");
     // i2c stuff, sensors
     let i2c = init_i2c!(device, gpioa, 400.khz(), clocks);
-        // device.I2C2.i2c((gpioa.pa9, gpioa.pa10), 400.khz(), clocks);
     info!(l, "i2c ok\r\n");
     let bus = SharedBus::new(i2c);
     info!(l, "i2c shared\r\n");
@@ -150,6 +156,12 @@ fn main() -> ! {
     // info!(l, "lsm ok\r\n");
     // bmp
     let mut bmp = BMP280::new(bus.acquire()).expect("bmp error");
+    bmp.set_config(
+        bmp280::Config {
+            t_sb: bmp280::Standby::ms0_5,
+            filter: bmp280::Filter::c16,
+        }
+    );
     info!(l, "bmp created\r\n");
     // tof
     let mut tof = vl53l0x::VL53L0x::new(bus.acquire()).expect("vl");
@@ -194,6 +206,13 @@ fn main() -> ! {
     let mut nvic = core.NVIC;
     nvic.enable(serial_int);
 
+    let original_pressure = get_mean_pressure_blocking(&mut bmp,
+                                                       &mut delay,
+                                                       7,
+                                                       150,
+                                                       80000.0);
+    let target_pressure = original_pressure - G * RHO * 1.0;
+
     delay.wc_delay_ms(2000);
     let max_duty = m_rear_right.get_max_duty() as f32;
 
@@ -204,8 +223,8 @@ fn main() -> ! {
     syst.clear_current();
     syst.enable_interrupt();
     syst.enable_counter();
-
-    info!(l, "max duty (arr): {}\r\n", max_duty);
+    info!(l, "max duty (arr): {}; pressure: {}; target: {}\r\n",
+          max_duty, original_pressure, target_pressure);
     let mut ekf = altitude::AslEkf::new();
     loop {
         let mut delta_y = 0.;
@@ -252,27 +271,19 @@ fn main() -> ! {
                                         as u32);
                 m3_rear_left.set_duty(clamp(rear_left, 0.0, max_duty) as u32);
                 m4_front_left.set_duty(clamp(front_left, 0.0, max_duty) as u32);
-                let mut old_dist:u16 = 0;
+                let pressure = bmp.pressure_one_shot() as f32;
+                let thrust_cmd = (target_pressure - pressure) * pres_koef() - START_THRUST;
+                unsafe {
+                    TOTAL_THRUST = clamp(thrust_cmd, 0.0, MAX_THRUST);
+                };
                 unsafe {
                     if STATUS_REQ == true {
-                        let mut fused: f32 = 0.;
-                        let dist_err = tof.read_range_mm();
-                        let pressure = bmp.pressure_one_shot();
-                        match (dist_err) {
-                            Ok(dist) => {
-                                old_dist = dist;
-                                fused = ekf.step(Vector2::new(pressure as f32,
-                                                              old_dist as f32))[0];
-                            },
-                            Err(e) => {
-                                info!(l, "dist error: {:?}\r\n", e);
-                            }
-                        };
                         STATUS_REQ = false;
-                        info!(l, "dcm: {:?}; gyro: {:?}; fused: {:?}\r\n",
+                        info!(l, "Pressure: {:?}; original: {:?}; target: {:?}\r\n",
+                              pressure, original_pressure, target_pressure);
+                        info!(l, "dcm: {:?}; gyro: {:?};\r\n",
                               dcm,
-                              biased_gyro,
-                              fused);
+                              biased_gyro);
                         info!(l,
                               "Motors: {}, {}, {}, {} max {}\r\n",
                               m_rear_right.get_duty(),
@@ -281,12 +292,13 @@ fn main() -> ! {
                               m4_front_left.get_duty(),
                               m4_front_left.get_max_duty());
                         info!(l,
-                              "Tthrust: {}; pk: {}; pipk: {}; ypk: {}; rpk: {}\r\n",
+                              "Tthrust: {}; pk: {}; pipk: {}; ypk: {}; rpk: {}; presk: {}\r\n",
                               total_thrust(),
                               pkoef(),
                               pitch_pkoef(),
                               yaw_pkoef(),
-                              roll_pkoef());
+                              roll_pkoef(),
+                              pres_koef());
                     }
                 }
             },
@@ -304,12 +316,37 @@ unsafe fn extract<T>(opt: &'static mut Option<T>) -> &'static mut T {
     }
 }
 
+fn get_mean_pressure_blocking<D, I2C>(bmp: &mut BMP280<I2C>, delay: &mut D, count: u8, dms: u32, min: f32) -> f32
+where D: WallClockDelay,
+      I2C: ehal::blocking::i2c::WriteRead
+{
+    let mut sum_press: f32 = 0.;
+    let mut passed: u8 = 0;
+    loop {
+        delay.wc_delay_ms(dms);
+        let current = (bmp.pressure_one_shot() as f32);
+        if current > min {
+            passed += 1;
+            sum_press += current;
+        }
+        if passed == count {
+            break;
+        }
+    }
+
+    sum_press / (count as f32)
+}
+
 fn total_thrust() -> f32 {
     unsafe { TOTAL_THRUST }
 }
 
 fn pkoef() -> f32 {
     unsafe { P_KOEFF }
+}
+
+fn pres_koef() -> f32 {
+    unsafe { PRES_KOEFF }
 }
 
 fn pitch_pkoef() -> f32 {
@@ -347,6 +384,11 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
                        ["thrust=", thrust:i32] => {
                            unsafe {
                                TOTAL_THRUST = thrust as f32
+                           };
+                       },
+                       ["sk=", presk:i32] => {
+                           unsafe {
+                               PRES_KOEFF = presk as f32
                            };
                        },
                        ["dk=", dk:i32] => {
