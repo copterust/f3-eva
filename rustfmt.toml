@@ -1,7 +1,7 @@
-edition = "Edition2018"
+edition = "2018"
 use_small_heuristics = "Max"
 reorder_modules = true
-reorder_imports =true
+reorder_imports = true
 indent_style = "Visual"
 wrap_comments = true
 comment_width = 80
