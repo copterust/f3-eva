@@ -32,7 +32,7 @@ impl Controller {
     pub fn altitude(
         self,
         target_alt: f32,
-        target_vetical_velocity: f32,
+        target_vertical_velocity: f32,
         altitude: f32,
         vertical_velocity: f32,
         attitude: Vector3,
@@ -43,7 +43,7 @@ impl Controller {
         v_cmd = clamp(v_cmd, -self.MaxDescentRate, self.MaxAscentRate);
         let acc_cmd = feed_forward_acceleration;
         acc_cmd += self.KpAltAcc * (v_cmd - vertical_velocity);
-        let thrust = self.Mass * acc_cmd / (cos(attitude[0]) * cos(attitude[1]);
+        let thrust = self.Mass * acc_cmd / (attitude[0].cos() * attitude[1].cos());
         clamp(thrust, 0.0, self.MaxThrust)
     }
 
@@ -70,7 +70,7 @@ impl Controller {
 
     /// Yaw controller.
     /// Returns: target yaw rate (in rads/s) based on current and desired yaw
-    pub fn yaw(self, target, current) -> f32 {
+    pub fn yaw(self, target: f32 , current: f32) -> f32 {
         let cmd = target % (2.0 * PI);
         let mut err = cmd - current;
         if err > PI {

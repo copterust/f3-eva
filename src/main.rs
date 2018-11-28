@@ -18,6 +18,7 @@ mod utils;
 mod toolbox;
 mod ahrs;
 mod altitude;
+mod controller;
 
 // internal imports
 use crate::bootloader::Bootloader;
