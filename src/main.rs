@@ -46,12 +46,15 @@ use hal::timer;
 use cortex_m_rt::{entry, exception, ExceptionFrame};
 use mpu9250::Mpu9250;
 use nalgebra::clamp;
-use nalgebra::{Vector3, Vector2};
+use nalgebra;
 
 use bmp280::{self, BMP280};
 // use lsm303c::Lsm303c;
 use vl53l0x;
 use shared_bus::CortexMBusManager as SharedBus;
+
+type Vector2 = nalgebra::Vector2<f32>;
+type Vector3 = nalgebra::Vector3<f32>;
 
 #[cfg(feature = "usart1")]
 use_serial!(USART1, usart_int, state: Option<Cmd> = None);

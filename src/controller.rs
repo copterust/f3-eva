@@ -1,5 +1,10 @@
+#![allow(non_snake_case)]
+
 use core::f32::consts::PI;
-use nalgebra::{Vector2, Vector3, norm, clamp};
+use nalgebra::{norm, clamp};
+use libm::F32Ext;
+
+use crate::{Vector2, Vector3};
 
 /// Nonlinear drone controller
 struct Controller {
@@ -41,8 +46,7 @@ impl Controller {
         let mut v_cmd = self.KpAlt * (target_alt - altitude);
         v_cmd += target_vertical_velocity;
         v_cmd = clamp(v_cmd, -self.MaxDescentRate, self.MaxAscentRate);
-        let acc_cmd = feed_forward_acceleration;
-        acc_cmd += self.KpAltAcc * (v_cmd - vertical_velocity);
+        let acc_cmd = feed_forward_acceleration + self.KpAltAcc * (v_cmd - vertical_velocity);
         let thrust = self.Mass * acc_cmd / (attitude[0].cos() * attitude[1].cos());
         clamp(thrust, 0.0, self.MaxThrust)
     }
@@ -52,7 +56,7 @@ impl Controller {
     /// attitude: roll, pitch, yaw
     /// Returns pitch and roll rates for desired north/east acceleration
     pub fn roll_pitch(self, cmd: Vector2, attitude: Vector3, thrust: f32) -> Vector2 {
-
+        unimplemented!();
     }
 
     /// Body-rate controller.
@@ -60,8 +64,10 @@ impl Controller {
     /// Returns: roll, pitch and yaw moments in N * m
     pub fn body_rate(self, target: Vector3, current: Vector3) -> Vector3 {
         let err = target - current;
-        let mut cmd = self.MOI * (self.KpPQR * err);
-        let norm = norm(cmd);
+        let mut cmd = self.MOI.clone();
+        cmd.component_mul_assign(&self.KpPQR);
+        cmd.component_mul_assign(&err);
+        let norm = norm(&cmd);
         if norm > self.max_torque {
             cmd = cmd * self.max_torque / norm;
         }
