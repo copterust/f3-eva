@@ -20,6 +20,13 @@ macro_rules! _init_serial {
      $clocks: expr) => {
         $device.USART2.serial(($gp.pa14, $gp.pa15), $br, $clocks)
     };
+    (USART3,
+     $device: ident,
+     $gp: ident,
+     $br: expr,
+     $clocks: expr) => {
+        $device.USART3.serial(($gp.pb10, $gp.pb11), $br, $clocks)
+    };
 }
 
 macro_rules! _init_i2c {
