@@ -4,6 +4,8 @@
 
 A custom-built hex micro copter.
 
+* Weight: 102.42;
+
 ### MOTORS
 
 * M1 -- pa0 -- rear right
