@@ -12,6 +12,8 @@ A custom-built hex micro copter.
 * M2 -- pa1 -- front right
 * M3 -- pa2 -- rear left
 * M4 -- pa3 -- front left
+* M5 -- pa6 -- left
+* M6 -- pa7 -- right
 
 ### Modular connector
 
