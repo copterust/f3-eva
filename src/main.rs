@@ -187,6 +187,18 @@ fn main() -> ! {
     m3_rear_left.enable();
     m4_front_left.enable();
     timer2.enable();
+
+    let (ch5, ch6, _, _, mut timer3) =
+        timer::tim3::Timer::new(device.TIM3,
+                                c::TIM_FREQ,
+                                clocks,
+                                &mut rcc.apb1).take_all();
+    let mut m5_left = gpioa.pa6.pull_type(PullUp).to_pwm(ch5, MediumSpeed);
+    let mut m6_right = gpioa.pa7.pull_type(PullUp).to_pwm(ch6, MediumSpeed);
+    m5_left.enable();
+    m6_right.enable();
+    timer3.enable();
+
     info!(l, "motors ok\r\n");
 
     let esc = ESC::new();
