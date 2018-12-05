@@ -3,17 +3,18 @@
 use core::f32::consts::PI;
 use nalgebra::{norm, clamp};
 use libm::F32Ext;
+use dcmimu::EulerAngles;
 
 use crate::{Vector2, Vector3};
 
 /// Nonlinear drone controller
-struct Controller {
+pub struct Controller {
     /// P-coefficient for yaw controller
     KpYaw: f32,
     /// P-coefficients for body-rate controller
     KpPQR: Vector3,
     /// Maximal torque
-    max_torque: f32,
+    MaxTorque: f32,
     /// Vehicle's moment of inertia about three axes
     MOI: Vector3,
     /// P-coefficient for altitude controller
@@ -31,23 +32,39 @@ struct Controller {
 }
 
 impl Controller {
+    /// new
+    pub fn new() -> Self {
+        Controller {
+            KpYaw: 0.0,
+            KpPQR: Vector3::new(0.0, 0.0, 0.0),
+            MaxTorque: 0.0,
+            MOI: Vector3::new(0.0, 0.0, 0.0),
+            KpAlt: 5.0,
+            MaxDescentRate: 200.0,
+            MaxAscentRate: 200.0,
+            KpAltAcc: 2.0,
+            Mass: 0.104,
+            MaxThrust: 10000.0,
+        }
+    }
+
     /// Altitude controller
     /// Return thrust to set given current state
     /// attitude in form roll/pitch/yaw
     pub fn altitude(
-        self,
+        &self,
         target_alt: f32,
         target_vertical_velocity: f32,
         altitude: f32,
         vertical_velocity: f32,
-        attitude: Vector3,
+        attitude: EulerAngles,
         feed_forward_acceleration: f32) -> f32 {
 
         let mut v_cmd = self.KpAlt * (target_alt - altitude);
         v_cmd += target_vertical_velocity;
         v_cmd = clamp(v_cmd, -self.MaxDescentRate, self.MaxAscentRate);
         let acc_cmd = feed_forward_acceleration + self.KpAltAcc * (v_cmd - vertical_velocity);
-        let thrust = self.Mass * acc_cmd / (attitude[0].cos() * attitude[1].cos());
+        let thrust = self.Mass * acc_cmd / (attitude.roll.cos() * attitude.pitch.cos());
         clamp(thrust, 0.0, self.MaxThrust)
     }
 
@@ -68,8 +85,8 @@ impl Controller {
         cmd.component_mul_assign(&self.KpPQR);
         cmd.component_mul_assign(&err);
         let norm = norm(&cmd);
-        if norm > self.max_torque {
-            cmd = cmd * self.max_torque / norm;
+        if norm > self.MaxTorque {
+            cmd = cmd * self.MaxTorque / norm;
         }
         cmd
     }

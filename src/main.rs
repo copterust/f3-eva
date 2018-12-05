@@ -17,8 +17,8 @@ mod utils;
 #[macro_use]
 mod toolbox;
 mod ahrs;
-mod altitude;
 mod controller;
+mod altitude;
 
 // internal imports
 use crate::bootloader::Bootloader;
@@ -43,19 +43,16 @@ use hal::spi::Spi;
 use hal::stm32f30x::{self, interrupt, Interrupt};
 use hal::timer;
 use ehal;
-
+use nb;
 use cortex_m_rt::{entry, exception, ExceptionFrame};
-use mpu9250::Mpu9250;
-use nalgebra::clamp;
-use nalgebra;
+use nalgebra::{self, clamp};
 
+// devices
+use mpu9250::Mpu9250;
 use bmp280::{self, BMP280};
 // use lsm303c::Lsm303c;
 use vl53l0x;
 use shared_bus::CortexMBusManager as SharedBus;
-
-type Vector2 = nalgebra::Vector2<f32>;
-type Vector3 = nalgebra::Vector3<f32>;
 
 #[cfg(feature = "usart1")]
 use_serial!(USART1, usart_int, state: Option<Cmd> = None);
@@ -65,6 +62,8 @@ use_serial!(USART2, usart_int, state: Option<Cmd> = None);
 type L = logging::SerialLogger<Tx<USART>,
                                gpio::PC14<PullNone,
                                           Output<PushPull, LowSpeed>>>;
+pub type Vector3 = nalgebra::Vector3<f32>;
+pub type Vector2 = nalgebra::Vector2<f32>;
 
 static mut L: Option<L> = None;
 static mut RX: Option<Rx<USART>> = None;
@@ -78,19 +77,24 @@ static mut YAW_KOEFF: f32 = 0.;
 static mut ROLL_KOEFF: f32 = 0.;
 static mut I_KOEFF: f32 = 0.;
 static mut D_KOEFF: f32 = 0.;
-static mut PRES_KOEFF: f32 = 0.;
 static mut TOTAL_THRUST: f32 = 0.;
+static mut TAKEOFF: bool = false;
 
 static mut NOW_MS: u32 = 0;
+static mut NOW_MS2: u32 = 0;
 static mut STATUS_REQ: bool = false;
 
-pub const START_THRUST: f32 = 900.;
+pub const START_THRUST: f32 = 1350.;
 pub const MAX_THRUST: f32 = 1800.;
 pub const G: f32 = 9.81;
 pub const RHO: f32 = 1.292;
 
 fn now_ms() -> u32 {
     unsafe { core::ptr::read_volatile(&NOW_MS as *const u32) }
+}
+
+fn now_ms2() -> u32 {
+    unsafe { core::ptr::read_volatile(&NOW_MS2 as *const u32) }
 }
 
 #[exception]
@@ -145,7 +149,7 @@ fn main() -> ! {
     let mut mpu9250 =
         Mpu9250::imu_default(spi, ncs, &mut delay).expect("mpu error");
     let mut ahrs =
-        ahrs::AHRS::create_calibrated(mpu9250, &mut delay, now_ms).expect("ahrs error");
+        ahrs::AHRS::create_calibrated(mpu9250, &mut delay, now_ms2).expect("ahrs error");
     // i2c stuff, sensors
     let i2c = init_i2c!(device, gpioa, 400.khz(), clocks);
     info!(l, "i2c ok\r\n");
@@ -165,7 +169,7 @@ fn main() -> ! {
     info!(l, "bmp created\r\n");
     // tof
     let mut tof = vl53l0x::VL53L0x::new(bus.acquire()).expect("vl");
-    info!(l, "vl ok\r\n");
+    info!(l, "vl/tof ok\r\n");
     tof.set_measurement_timing_budget(200000).expect("timbudg");
     info!(l, "meas budget set; start cont \r\n");
     tof.start_continuous(0).expect("start cont");
@@ -235,9 +239,17 @@ fn main() -> ! {
     syst.clear_current();
     syst.enable_interrupt();
     syst.enable_counter();
-    info!(l, "max duty (arr): {}; pressure: {}; target: {}\r\n",
-          max_duty, original_pressure, target_pressure);
-    let mut ekf = altitude::AslEkf::new();
+    let initial_altitude: f32 = (tof.read_range_mm().expect("initial tof read error") as f32) / 1000.;
+    info!(l, "max duty (arr): {}; pressure: {}; target: {}; alt bias: {}\r\n",
+          max_duty, original_pressure, target_pressure, initial_altitude);
+
+    let mut altitude: f32 = 0.;
+    let mut vertical_velocity: f32 = 0.;
+    let mut alt_tm_ms = now_ms();
+    let takeoff_duration_s: f32 = 6.0;
+    let takeoff_to: f32 = 0.5;
+    let mut elapsed_s: f32 = alt_tm_ms as f32 / 1000.;
+    let alt_controller = controller::Controller::new();
     loop {
         let mut delta_y = 0.;
         let mut delta_x = 0.;
@@ -247,6 +259,42 @@ fn main() -> ! {
         let mut prev_err_z = 0.;
         match ahrs.estimate(l) {
             Ok((dcm, biased_gyro, dt_s)) => {
+                if is_takeoff() {
+                    match tof.read_range_mm() {
+                        Ok(v) => {
+                            // if >= 8092...
+                            let current_time_ms = now_ms();
+                            let current_time_s = current_time_ms as f32 / 1000.;
+                            let time_diff_s = current_time_ms.wrapping_sub(alt_tm_ms) as f32 / 1000.;
+                            alt_tm_ms = current_time_ms;
+                            elapsed_s += time_diff_s;
+                            let (h0, h1, t0, t1) = if elapsed_s < takeoff_duration_s {
+                                (0.0, takeoff_to, 0.0, takeoff_duration_s)
+                            } else {
+                                (takeoff_to, takeoff_to, 0.0, 1.0)
+                            };
+                            let current_altitude = (v as f32) / 1000. - initial_altitude;
+                            let traversed = current_altitude - altitude;
+                            altitude = current_altitude;
+                            vertical_velocity = traversed / time_diff_s;
+                            let target_alt = h0 + (h1 - h0) * (elapsed_s - t0) / (t1 - t0);
+                            let target_vertical_veloctity = (h1 - h0) / (t1 - t0);
+                            let alt_thrust = alt_controller.altitude(
+                                target_alt,
+                                target_vertical_veloctity,
+                                altitude,
+                                vertical_velocity,
+                                dcm,
+                                G);
+                            let thrust = alt_thrust * START_THRUST;
+                            unsafe {
+                                TOTAL_THRUST = thrust;
+                            }
+                        },
+                        Err(_) => {}
+                    };
+                }
+
                 // let x_err = 0. - g.x;
                 // let z_err = 0. - g.z;
                 // body rate ctrl
@@ -283,17 +331,13 @@ fn main() -> ! {
                                         as u32);
                 m3_rear_left.set_duty(clamp(rear_left, 0.0, max_duty) as u32);
                 m4_front_left.set_duty(clamp(front_left, 0.0, max_duty) as u32);
-                let pressure = bmp.pressure_one_shot() as f32;
-                let thrust_cmd = (target_pressure - pressure) * pres_koef() - START_THRUST;
-                unsafe {
-                    TOTAL_THRUST = clamp(thrust_cmd, 0.0, MAX_THRUST);
-                };
                 unsafe {
                     if STATUS_REQ == true {
                         STATUS_REQ = false;
-                        info!(l, "Pressure: {:?}; original: {:?}; target: {:?}\r\n",
-                              pressure, original_pressure, target_pressure);
-                        info!(l, "dcm: {:?}; gyro: {:?};\r\n",
+                        info!(l, "Altitude: {:?}; vspeed: {:?}; elapsed: {:?}\r\n",
+                              altitude, vertical_velocity, elapsed_s);
+                        info!(l, "dt: {:?}; dcm: {:?}; gyro: {:?};\r\n",
+                              dt_s,
                               dcm,
                               biased_gyro);
                         info!(l,
@@ -304,13 +348,12 @@ fn main() -> ! {
                               m4_front_left.get_duty(),
                               m4_front_left.get_max_duty());
                         info!(l,
-                              "Tthrust: {}; pk: {}; pipk: {}; ypk: {}; rpk: {}; presk: {}\r\n",
+                              "Tthrust: {}; pk: {}; pipk: {}; ypk: {}; rpk: {}\r\n",
                               total_thrust(),
                               pkoef(),
                               pitch_pkoef(),
                               yaw_pkoef(),
-                              roll_pkoef(),
-                              pres_koef());
+                              roll_pkoef());
                     }
                 }
             },
@@ -329,8 +372,9 @@ unsafe fn extract<T>(opt: &'static mut Option<T>) -> &'static mut T {
 }
 
 fn get_mean_pressure_blocking<D, I2C>(bmp: &mut BMP280<I2C>, delay: &mut D, count: u8, dms: u32, min: f32) -> f32
-where D: WallClockDelay,
-      I2C: ehal::blocking::i2c::WriteRead
+where
+    D: WallClockDelay,
+    I2C: ehal::blocking::i2c::WriteRead
 {
     let mut sum_press: f32 = 0.;
     let mut passed: u8 = 0;
@@ -353,12 +397,12 @@ fn total_thrust() -> f32 {
     unsafe { TOTAL_THRUST }
 }
 
-fn pkoef() -> f32 {
-    unsafe { P_KOEFF }
+fn is_takeoff() -> bool {
+    unsafe { TAKEOFF }
 }
 
-fn pres_koef() -> f32 {
-    unsafe { PRES_KOEFF }
+fn pkoef() -> f32 {
+    unsafe { P_KOEFF }
 }
 
 fn pitch_pkoef() -> f32 {
@@ -398,9 +442,12 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
                                TOTAL_THRUST = thrust as f32
                            };
                        },
-                       ["sk=", presk:i32] => {
+                       ["takeoff"] => {
                            unsafe {
-                               PRES_KOEFF = presk as f32
+                               TAKEOFF = true;
+                               PITCH_KOEFF = 7.;
+                               ROLL_KOEFF = 7.;
+                               P_KOEFF = 200.;
                            };
                        },
                        ["dk=", dk:i32] => {
