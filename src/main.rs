@@ -152,28 +152,24 @@ fn main() -> ! {
     let mut ahrs =
         ahrs::AHRS::create_calibrated(mpu9250, &mut delay, now_ms2).expect("ahrs error");
     // i2c stuff, sensors
-    // let i2c = init_i2c!(device, gpioa, 400.khz(), clocks);
-    // info!(l, "i2c ok\r\n");
-    // let bus = SharedBus::new(i2c);
-    // info!(l, "i2c shared\r\n");
+    let i2c = init_i2c!(device, gpioa, 400.khz(), clocks);
+    info!(l, "i2c ok\r\n");
+    let bus = SharedBus::new(i2c);
+    info!(l, "i2c shared\r\n");
     // lsm
     // let mut lsm303 = Lsm303c::default(bus.acquire()).expect("lsm error");
     // info!(l, "lsm ok\r\n");
     // bmp
-    // let mut bmp = BMP280::new(bus.acquire()).expect("bmp error");
-    // bmp.set_config(
-    //     bmp280::Config {
-    //         t_sb: bmp280::Standby::ms0_5,
-    //         filter: bmp280::Filter::c16,
-    //     }
-    // );
-    // info!(l, "bmp created\r\n");
+    let mut bmp = BMP280::new(bus.acquire()).expect("bmp error");
+    bmp.set_config(bmp280::Config { t_sb: bmp280::Standby::ms0_5,
+                                    filter: bmp280::Filter::c16 });
+    info!(l, "bmp created\r\n");
     // // tof
-    // let mut tof = vl53l0x::VL53L0x::new(bus.acquire()).expect("vl");
-    // info!(l, "vl/tof ok\r\n");
-    // tof.set_measurement_timing_budget(200000).expect("timbudg");
-    // info!(l, "meas budget set; start cont \r\n");
-    // tof.start_continuous(0).expect("start cont");
+    let mut tof = vl53l0x::VL53L0x::new(bus.acquire()).expect("vl");
+    info!(l, "vl/tof ok\r\n");
+    tof.set_measurement_timing_budget(200000).expect("timbudg");
+    info!(l, "meas budget set; start cont \r\n");
+    tof.start_continuous(0).expect("start cont");
     // MOTORS:
     // pa0 -- pa3
     let (ch1, ch2, ch3, ch4, mut timer2) =
@@ -223,9 +219,9 @@ fn main() -> ! {
     let mut nvic = core.NVIC;
     nvic.enable(serial_int);
 
-    // let original_pressure =
-    //     get_mean_pressure_blocking(&mut bmp, &mut delay, 7, 150, 80000.0);
-    // let target_pressure = original_pressure - G * RHO * 1.0;
+    let original_pressure =
+        get_mean_pressure_blocking(&mut bmp, &mut delay, 7, 150, 80000.0);
+    let target_pressure = original_pressure - G * RHO * 1.0;
 
     delay.wc_delay_ms(2000);
     let max_duty = m_rear_right.get_max_duty() as f32;
@@ -237,14 +233,14 @@ fn main() -> ! {
     syst.clear_current();
     syst.enable_interrupt();
     syst.enable_counter();
-    // let initial_altitude: f32 =
-    //     (tof.read_range_mm().expect("initial tof read error") as f32) /
-    // 1000.; info!(l,
-    //       "max duty (arr): {}; pressure: {}; target: {}; alt bias: {}\r\n",
-    //       max_duty,
-    //       original_pressure,
-    //       target_pressure,
-    //       initial_altitude);
+    let initial_altitude: f32 =
+        (tof.read_range_mm().expect("initial tof read error") as f32) / 1000.;
+    info!(l,
+          "max duty (arr): {}; pressure: {}; target: {}; alt bias: {}\r\n",
+          max_duty,
+          original_pressure,
+          target_pressure,
+          initial_altitude);
 
     let mut altitude: f32 = 0.;
     let mut vertical_velocity: f32 = 0.;
@@ -382,31 +378,31 @@ unsafe fn extract<T>(opt: &'static mut Option<T>) -> &'static mut T {
     }
 }
 
-// fn get_mean_pressure_blocking<D, I2C>(bmp: &mut BMP280<I2C>,
-//                                       delay: &mut D,
-//                                       count: u8,
-//                                       dms: u32,
-//                                       min: f32)
-//                                       -> f32
-//     where D: WallClockDelay,
-//           I2C: ehal::blocking::i2c::WriteRead
-// {
-//     let mut sum_press: f32 = 0.;
-//     let mut passed: u8 = 0;
-//     loop {
-//         delay.wc_delay_ms(dms);
-//         let current = (bmp.pressure_one_shot() as f32);
-//         if current > min {
-//             passed += 1;
-//             sum_press += current;
-//         }
-//         if passed == count {
-//             break;
-//         }
-//     }
+fn get_mean_pressure_blocking<D, I2C>(bmp: &mut BMP280<I2C>,
+                                      delay: &mut D,
+                                      count: u8,
+                                      dms: u32,
+                                      min: f32)
+                                      -> f32
+    where D: WallClockDelay,
+          I2C: ehal::blocking::i2c::WriteRead
+{
+    let mut sum_press: f32 = 0.;
+    let mut passed: u8 = 0;
+    loop {
+        delay.wc_delay_ms(dms);
+        let current = (bmp.pressure_one_shot() as f32);
+        if current > min {
+            passed += 1;
+            sum_press += current;
+        }
+        if passed == count {
+            break;
+        }
+    }
 
-//     sum_press / (count as f32)
-// }
+    sum_press / (count as f32)
+}
 
 fn total_thrust() -> f32 {
     unsafe { TOTAL_THRUST }
