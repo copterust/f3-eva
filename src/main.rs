@@ -258,48 +258,48 @@ fn main() -> ! {
         let mut prev_err_z = 0.;
         match ahrs.estimate(l) {
             Ok((dcm, biased_gyro, dt_s)) => {
-                // if is_takeoff() {
-                //     match tof.read_range_mm() {
-                //         Ok(v) => {
-                //             // if >= 8092...
-                //             let current_time_ms = now_ms();
-                //             let current_time_s = current_time_ms as f32 /
-                // 1000.;             let time_diff_s =
-                //                 current_time_ms.wrapping_sub(alt_tm_ms) as
-                // f32                 / 1000.;
-                //             alt_tm_ms = current_time_ms;
-                //             elapsed_s += time_diff_s;
-                //             let (h0, h1, t0, t1) =
-                //                 if elapsed_s < takeoff_duration_s {
-                //                     (0.0, takeoff_to, 0.0,
-                // takeoff_duration_s)                 } else {
-                //                     (takeoff_to, takeoff_to, 0.0, 1.0)
-                //                 };
-                //             let current_altitude =
-                //                 (v as f32) / 1000. - initial_altitude;
-                //             let traversed = current_altitude - altitude;
-                //             altitude = current_altitude;
-                //             vertical_velocity = traversed / time_diff_s;
-                //             let target_alt =
-                //                 h0 + (h1 - h0) * (elapsed_s - t0) / (t1 -
-                // t0);             let
-                // target_vertical_veloctity =
-                // (h1 - h0) / (t1 - t0);             let
-                // alt_thrust = alt_controller.altitude(
-                //                 target_alt,
-                //                 target_vertical_veloctity,
-                //                 altitude,
-                //                 vertical_velocity,
-                //                 dcm,
-                //                 G);
-                //             let thrust = alt_thrust * START_THRUST;
-                //             unsafe {
-                //                 TOTAL_THRUST = thrust;
-                //             }
-                //         },
-                //         Err(_) => {},
-                //     };
-                // }
+                if is_takeoff() {
+                    match tof.read_range_mm() {
+                        Ok(v) => {
+                            // if >= 8092...
+                            let current_time_ms = now_ms();
+                            let current_time_s = current_time_ms as f32 / 1000.;
+                            let time_diff_s =
+                                current_time_ms.wrapping_sub(alt_tm_ms) as f32
+                                / 1000.;
+                            alt_tm_ms = current_time_ms;
+                            elapsed_s += time_diff_s;
+                            let (h0, h1, t0, t1) =
+                                if elapsed_s < takeoff_duration_s {
+                                    (0.0, takeoff_to, 0.0, takeoff_duration_s)
+                                } else {
+                                    (takeoff_to, takeoff_to, 0.0, 1.0)
+                                };
+                            let current_altitude =
+                                (v as f32) / 1000. - initial_altitude;
+                            let traversed = current_altitude - altitude;
+                            altitude = current_altitude;
+                            vertical_velocity = traversed / time_diff_s;
+                            let target_alt =
+                                h0 + (h1 - h0) * (elapsed_s - t0) / (t1 - t0);
+                            let target_vertical_veloctity =
+                                (h1 - h0) / (t1 - t0);
+                            let
+                alt_thrust = alt_controller.altitude(
+                                target_alt,
+                                target_vertical_veloctity,
+                                altitude,
+                                vertical_velocity,
+                                dcm,
+                                G);
+                            let thrust = alt_thrust * START_THRUST;
+                            unsafe {
+                                TOTAL_THRUST = thrust;
+                            }
+                        },
+                        Err(_) => {},
+                    };
+                }
 
                 // let x_err = 0. - g.x;
                 // let z_err = 0. - g.z;
