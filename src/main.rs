@@ -48,7 +48,7 @@ use nalgebra::{self, clamp};
 use nb;
 
 // devices
-use bmp280::{self, BMP280};
+// use bmp280::{self, BMP280};
 use mpu9250::Mpu9250;
 // use lsm303c::Lsm303c;
 use shared_bus::CortexMBusManager as SharedBus;
@@ -85,7 +85,7 @@ static mut NOW_MS2: u32 = 0;
 static mut STATUS_REQ: bool = false;
 
 pub const START_THRUST: f32 = 1350.;
-pub const MAX_THRUST: f32 = 1800.;
+pub const MAX_THRUST: f32 = 1950.;
 pub const G: f32 = 9.81;
 pub const RHO: f32 = 1.292;
 
@@ -127,8 +127,8 @@ fn main() -> ! {
     let serial_int = serial.get_interrupt();
     serial.listen(serial::Event::Rxne);
     let (mut tx, rx) = serial.split();
-    // COBS frame
-    tx.write(0x00).unwrap();
+    // // COBS frame
+    // tx.write(0x00).unwrap();
 
     let beeper = gpioc.pc14.output().pull_type(PullNone);
     let mut l = logging::SerialLogger::new(tx, beeper);
@@ -160,10 +160,10 @@ fn main() -> ! {
     // let mut lsm303 = Lsm303c::default(bus.acquire()).expect("lsm error");
     // info!(l, "lsm ok\r\n");
     // bmp
-    let mut bmp = BMP280::new(bus.acquire()).expect("bmp error");
-    bmp.set_config(bmp280::Config { t_sb: bmp280::Standby::ms0_5,
-                                    filter: bmp280::Filter::c16 });
-    info!(l, "bmp created\r\n");
+    // let mut bmp = BMP280::new(bus.acquire()).expect("bmp error");
+    // bmp.set_config(bmp280::Config { t_sb: bmp280::Standby::ms0_5,
+    //                                 filter: bmp280::Filter::c16 });
+    // info!(l, "bmp created\r\n");
     // // tof
     let mut tof = vl53l0x::VL53L0x::new(bus.acquire()).expect("vl");
     info!(l, "vl/tof ok\r\n");
@@ -177,13 +177,14 @@ fn main() -> ! {
                                 c::TIM_FREQ,
                                 clocks,
                                 &mut rcc.apb1).take_all();
-    let mut m_rear_right = gpioa.pa0.pull_type(PullUp).to_pwm(ch1, MediumSpeed);
+    let mut m1_rear_right =
+        gpioa.pa0.pull_type(PullUp).to_pwm(ch1, MediumSpeed);
     let mut m2_front_right =
         gpioa.pa1.pull_type(PullUp).to_pwm(ch2, MediumSpeed);
     let mut m3_rear_left = gpioa.pa2.pull_type(PullUp).to_pwm(ch3, MediumSpeed);
     let mut m4_front_left =
         gpioa.pa3.pull_type(PullUp).to_pwm(ch4, MediumSpeed);
-    m_rear_right.enable();
+    m1_rear_right.enable();
     m2_front_right.enable();
     m3_rear_left.enable();
     m4_front_left.enable();
@@ -219,12 +220,12 @@ fn main() -> ! {
     let mut nvic = core.NVIC;
     nvic.enable(serial_int);
 
-    let original_pressure =
-        get_mean_pressure_blocking(&mut bmp, &mut delay, 7, 150, 80000.0);
-    let target_pressure = original_pressure - G * RHO * 1.0;
+    // let original_pressure =
+    //     get_mean_pressure_blocking(&mut bmp, &mut delay, 7, 150, 80000.0);
+    // let target_pressure = original_pressure - G * RHO * 1.0;
 
     delay.wc_delay_ms(2000);
-    let max_duty = m_rear_right.get_max_duty() as f32;
+    let max_duty = m1_rear_right.get_max_duty() as f32;
 
     // Set systick to fire every ms
     let mut syst = delay.free();
@@ -235,18 +236,18 @@ fn main() -> ! {
     syst.enable_counter();
     let initial_altitude: f32 =
         (tof.read_range_mm().expect("initial tof read error") as f32) / 1000.;
-    info!(l,
-          "max duty (arr): {}; pressure: {}; target: {}; alt bias: {}\r\n",
-          max_duty,
-          original_pressure,
-          target_pressure,
-          initial_altitude);
+    // info!(l,
+    //       "max duty (arr): {}; pressure: {}; target: {}; alt bias: {}\r\n",
+    //       max_duty,
+    //       original_pressure,
+    //       target_pressure,
+    //       initial_altitude);
 
     let mut altitude: f32 = 0.;
     let mut vertical_velocity: f32 = 0.;
     let mut alt_tm_ms = now_ms();
-    let takeoff_duration_s: f32 = 6.0;
-    let takeoff_to: f32 = 0.5;
+    let takeoff_duration_s: f32 = 3.0;
+    let takeoff_to: f32 = 0.10;
     let mut elapsed_s: f32 = alt_tm_ms as f32 / 1000.;
     let alt_controller = controller::Controller::new();
     loop {
@@ -284,8 +285,7 @@ fn main() -> ! {
                                 h0 + (h1 - h0) * (elapsed_s - t0) / (t1 - t0);
                             let target_vertical_veloctity =
                                 (h1 - h0) / (t1 - t0);
-                            let
-                alt_thrust = alt_controller.altitude(
+                            let alt_thrust = alt_controller.altitude(
                                 target_alt,
                                 target_vertical_veloctity,
                                 altitude,
@@ -328,15 +328,27 @@ fn main() -> ! {
                 prev_err_y = y_err;
                 prev_err_z = z_err;
                 let t = total_thrust();
-                let front_left = t - x_corr + y_corr - z_corr;
-                let front_right = t + x_corr + y_corr + z_corr;
-                let rear_left = t - x_corr - y_corr + z_corr;
-                let rear_right = t + x_corr - y_corr - z_corr;
-                m_rear_right.set_duty(clamp(rear_right, 0.0, max_duty) as u32);
-                m2_front_right.set_duty(clamp(front_right, 0.0, max_duty)
+                let rear_right_m1 =
+                    t + 0.567 * x_corr - 0.815 * y_corr - 1.0 * z_corr;
+                let front_right_m2 =
+                    t + 0.567 * x_corr + 0.815 * y_corr - 1.0 * z_corr;
+                let rear_left_m3 =
+                    t - 0.567 * x_corr - 0.815 * y_corr + 1.0 * z_corr;
+                let front_left_m4 =
+                    t - 0.567 * x_corr + 0.815 * y_corr + 1.0 * z_corr;
+                let left_m5 = t - 1.0 * x_corr - 0.0 * y_corr - 1.0 * z_corr;
+                let right_m6 = t + 1.0 * x_corr - 0.0 * y_corr + 1.0 * z_corr;
+
+                m1_rear_right.set_duty(clamp(rear_right_m1, 0.0, max_duty)
+                                       as u32);
+                m2_front_right.set_duty(clamp(front_right_m2, 0.0, max_duty)
                                         as u32);
-                m3_rear_left.set_duty(clamp(rear_left, 0.0, max_duty) as u32);
-                m4_front_left.set_duty(clamp(front_left, 0.0, max_duty) as u32);
+                m3_rear_left.set_duty(clamp(rear_left_m3, 0.0, max_duty)
+                                      as u32);
+                m4_front_left.set_duty(clamp(front_left_m4, 0.0, max_duty)
+                                       as u32);
+                m5_left.set_duty(clamp(left_m5, 0.0, max_duty) as u32);
+                m6_right.set_duty(clamp(right_m6, 0.0, max_duty) as u32);
                 unsafe {
                     if STATUS_REQ == true {
                         STATUS_REQ = false;
@@ -348,11 +360,13 @@ fn main() -> ! {
                               dcm,
                               biased_gyro);
                         info!(l,
-                              "Motors: {}, {}, {}, {} max {}\r\n",
-                              m_rear_right.get_duty(),
+                              "Motors: 1:{};2:{};3:{};4:{};5:{};6:{}; max {}\r\n",
+                              m1_rear_right.get_duty(),
                               m2_front_right.get_duty(),
                               m3_rear_left.get_duty(),
                               m4_front_left.get_duty(),
+                              m5_left.get_duty(),
+                              m6_right.get_duty(),
                               m4_front_left.get_max_duty());
                         info!(l,
                               "Tthrust: {}; pk: {}; pipk: {}; ypk: {}; rpk: {}\r\n",
@@ -378,31 +392,31 @@ unsafe fn extract<T>(opt: &'static mut Option<T>) -> &'static mut T {
     }
 }
 
-fn get_mean_pressure_blocking<D, I2C>(bmp: &mut BMP280<I2C>,
-                                      delay: &mut D,
-                                      count: u8,
-                                      dms: u32,
-                                      min: f32)
-                                      -> f32
-    where D: WallClockDelay,
-          I2C: ehal::blocking::i2c::WriteRead
-{
-    let mut sum_press: f32 = 0.;
-    let mut passed: u8 = 0;
-    loop {
-        delay.wc_delay_ms(dms);
-        let current = (bmp.pressure_one_shot() as f32);
-        if current > min {
-            passed += 1;
-            sum_press += current;
-        }
-        if passed == count {
-            break;
-        }
-    }
+// fn get_mean_pressure_blocking<D, I2C>(bmp: &mut BMP280<I2C>,
+//                                       delay: &mut D,
+//                                       count: u8,
+//                                       dms: u32,
+//                                       min: f32)
+//                                       -> f32
+//     where D: WallClockDelay,
+//           I2C: ehal::blocking::i2c::WriteRead
+// {
+//     let mut sum_press: f32 = 0.;
+//     let mut passed: u8 = 0;
+//     loop {
+//         delay.wc_delay_ms(dms);
+//         let current = (bmp.pressure_one_shot() as f32);
+//         if current > min {
+//             passed += 1;
+//             sum_press += current;
+//         }
+//         if passed == count {
+//             break;
+//         }
+//     }
 
-    sum_press / (count as f32)
-}
+//     sum_press / (count as f32)
+// }
 
 fn total_thrust() -> f32 {
     unsafe { TOTAL_THRUST }
@@ -456,8 +470,8 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
                        ["takeoff"] => {
                            unsafe {
                                TAKEOFF = true;
-                               PITCH_KOEFF = 7.;
-                               ROLL_KOEFF = 7.;
+                               PITCH_KOEFF = 5.;
+                               ROLL_KOEFF = 5.;
                                P_KOEFF = 200.;
                            };
                        },
