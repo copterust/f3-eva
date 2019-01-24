@@ -1,9 +1,9 @@
 #![allow(non_snake_case)]
 
 use core::f32::consts::PI;
-use nalgebra::{norm, clamp};
-use libm::F32Ext;
 use dcmimu::EulerAngles;
+use libm::F32Ext;
+use nalgebra::clamp;
 
 use crate::{Vector2, Vector3};
 
@@ -34,37 +34,36 @@ pub struct Controller {
 impl Controller {
     /// new
     pub fn new() -> Self {
-        Controller {
-            KpYaw: 0.0,
-            KpPQR: Vector3::new(0.0, 0.0, 0.0),
-            MaxTorque: 0.0,
-            MOI: Vector3::new(0.0, 0.0, 0.0),
-            KpAlt: 5.0,
-            MaxDescentRate: 200.0,
-            MaxAscentRate: 200.0,
-            KpAltAcc: 2.0,
-            Mass: 0.104,
-            MaxThrust: 10000.0,
-        }
+        Controller { KpYaw: 0.0,
+                     KpPQR: Vector3::new(0.0, 0.0, 0.0),
+                     MaxTorque: 0.0,
+                     MOI: Vector3::new(0.0, 0.0, 0.0),
+                     KpAlt: 5.0,
+                     MaxDescentRate: 200.0,
+                     MaxAscentRate: 200.0,
+                     KpAltAcc: 2.0,
+                     Mass: 0.104,
+                     MaxThrust: 10000.0 }
     }
 
     /// Altitude controller
     /// Return thrust to set given current state
     /// attitude in form roll/pitch/yaw
-    pub fn altitude(
-        &self,
-        target_alt: f32,
-        target_vertical_velocity: f32,
-        altitude: f32,
-        vertical_velocity: f32,
-        attitude: EulerAngles,
-        feed_forward_acceleration: f32) -> f32 {
-
+    pub fn altitude(&self,
+                    target_alt: f32,
+                    target_vertical_velocity: f32,
+                    altitude: f32,
+                    vertical_velocity: f32,
+                    attitude: EulerAngles,
+                    feed_forward_acceleration: f32)
+                    -> f32 {
         let mut v_cmd = self.KpAlt * (target_alt - altitude);
         v_cmd += target_vertical_velocity;
         v_cmd = clamp(v_cmd, -self.MaxDescentRate, self.MaxAscentRate);
-        let acc_cmd = feed_forward_acceleration + self.KpAltAcc * (v_cmd - vertical_velocity);
-        let thrust = self.Mass * acc_cmd / (attitude.roll.cos() * attitude.pitch.cos());
+        let acc_cmd = feed_forward_acceleration
+                      + self.KpAltAcc * (v_cmd - vertical_velocity);
+        let thrust =
+            self.Mass * acc_cmd / (attitude.roll.cos() * attitude.pitch.cos());
         clamp(thrust, 0.0, self.MaxThrust)
     }
 
@@ -72,7 +71,11 @@ impl Controller {
     /// cmd: target acceleration (north, east)
     /// attitude: roll, pitch, yaw
     /// Returns pitch and roll rates for desired north/east acceleration
-    pub fn roll_pitch(self, cmd: Vector2, attitude: Vector3, thrust: f32) -> Vector2 {
+    pub fn roll_pitch(self,
+                      cmd: Vector2,
+                      attitude: Vector3,
+                      thrust: f32)
+                      -> Vector2 {
         unimplemented!();
     }
 
@@ -84,7 +87,7 @@ impl Controller {
         let mut cmd = self.MOI.clone();
         cmd.component_mul_assign(&self.KpPQR);
         cmd.component_mul_assign(&err);
-        let norm = norm(&cmd);
+        let norm = Vector3::norm(&cmd);
         if norm > self.MaxTorque {
             cmd = cmd * self.MaxTorque / norm;
         }
@@ -93,7 +96,7 @@ impl Controller {
 
     /// Yaw controller.
     /// Returns: target yaw rate (in rads/s) based on current and desired yaw
-    pub fn yaw(self, target: f32 , current: f32) -> f32 {
+    pub fn yaw(self, target: f32, current: f32) -> f32 {
         let cmd = target % (2.0 * PI);
         let mut err = cmd - current;
         if err > PI {
