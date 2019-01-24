@@ -2,14 +2,11 @@
 
 Drone firmware written in [rust](https://github.com/rust-lang/rust).
 
-[Master](https://github.com/copterust/f3-eva/tree/master): [![Build Status](https://travis-ci.org/copterust/f3-eva.svg?branch=master)](https://travis-ci.org/copterust/f3-eva)
-
-[Develop](https://github.com/copterust/f3-eva/tree/master): [![Build Status](https://travis-ci.org/copterust/f3-eva.svg?branch=develop)](https://travis-ci.org/copterust/f3-eva)
+[![Build Status](https://travis-ci.org/copterust/f3-eva.svg?branch=master)](https://travis-ci.org/copterust/f3-eva)
 
 # Installation
 
 We use rust nightly with target thumbv7em-none-eabi, travis uses both stable and nightly.
-We use [bobbin-cli](https://github.com/bobbin-rs/bobbin-cli) to flash device.
 
 # Hardware
 
@@ -29,19 +26,8 @@ Officially supported devices are:
 
 ### Hexocopter
 
-Weight w/o airscrews and battery -- 50.2g.
+### Quadrocopter
 
-Weight with battery and props -- 68.2g.
+## Doc
 
-
-## DevKit:
-
-*Blackmagic:*
-
-Bmagic PB8 -- TCK / SMLCK;
-
-Bmagic PB9 -- TIMS / SWDIO.
-
-MPU: see code.
-
-Serial2COM: converter tx to board rx; converter rx to board tx (see code).
+Refer to [docs](docs/PLATFORMS.md)

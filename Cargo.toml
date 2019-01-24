@@ -46,7 +46,7 @@ features = ["rt"]
 
 [dependencies.nalgebra]
 default-features = false
-version = "0.16.4"
+version = "0.16.13"
 
 [features]
 usart1 = []
