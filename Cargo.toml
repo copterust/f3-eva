@@ -24,7 +24,7 @@ incremental = false # nalgebra
 [dependencies]
 nb = "0.1.1"
 cortex-m = {version = "0.5.8", features = ["inline-asm", "const-fn"]}
-mpu9250 = "0.6.4"
+mpu9250 = "0.7.4"
 libm = "0.1.2"
 dcmimu = "0.2.1"
 cortex-m-rt = "0.6.5"
