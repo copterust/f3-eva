@@ -19,6 +19,7 @@ mod toolbox;
 mod ahrs;
 mod altitude;
 mod controller;
+mod mixer;
 
 // internal imports
 use crate::bootloader::Bootloader;
@@ -203,6 +204,28 @@ fn main() -> ! {
 
     info!(l, "motors ok\r\n");
 
+    let mut ctrl = mixer::MotorCtrl {
+        map: mixer::Map6::from_row_slice(&[
+            0.567, -0.815, -1.0, 1.0, // rear left
+            0.567, 0.815, -1.0, 1.0, // front right
+            -0.567, -0.815, 1.0, 1.0, // rear left
+            -0.567, 0.815, 1.0, 1.0, // front left
+            -1.0, -0.0, -1.0, 1.0, // left
+            1.0, -0.0, 1.0, 1.0, // right
+        ]),
+
+        max_duty: m1_rear_right.get_max_duty() as f32,
+
+        pin: (
+            m1_rear_right,
+            m2_front_right,
+            m3_rear_left,
+            m4_front_left,
+            m5_left,
+            m6_right,
+        ),
+    };
+
     let esc = ESC::new();
     let motor = CorelessMotor::new();
 
@@ -225,7 +248,6 @@ fn main() -> ! {
     // let target_pressure = original_pressure - G * RHO * 1.0;
 
     delay.wc_delay_ms(2000);
-    let max_duty = m1_rear_right.get_max_duty() as f32;
 
     // Set systick to fire every ms
     let mut syst = delay.free();
@@ -327,28 +349,9 @@ fn main() -> ! {
                 prev_err_x = x_err;
                 prev_err_y = y_err;
                 prev_err_z = z_err;
-                let t = total_thrust();
-                let rear_right_m1 =
-                    t + 0.567 * x_corr - 0.815 * y_corr - 1.0 * z_corr;
-                let front_right_m2 =
-                    t + 0.567 * x_corr + 0.815 * y_corr - 1.0 * z_corr;
-                let rear_left_m3 =
-                    t - 0.567 * x_corr - 0.815 * y_corr + 1.0 * z_corr;
-                let front_left_m4 =
-                    t - 0.567 * x_corr + 0.815 * y_corr + 1.0 * z_corr;
-                let left_m5 = t - 1.0 * x_corr - 0.0 * y_corr - 1.0 * z_corr;
-                let right_m6 = t + 1.0 * x_corr - 0.0 * y_corr + 1.0 * z_corr;
 
-                m1_rear_right.set_duty(clamp(rear_right_m1, 0.0, max_duty)
-                                       as u32);
-                m2_front_right.set_duty(clamp(front_right_m2, 0.0, max_duty)
-                                        as u32);
-                m3_rear_left.set_duty(clamp(rear_left_m3, 0.0, max_duty)
-                                      as u32);
-                m4_front_left.set_duty(clamp(front_left_m4, 0.0, max_duty)
-                                       as u32);
-                m5_left.set_duty(clamp(left_m5, 0.0, max_duty) as u32);
-                m6_right.set_duty(clamp(right_m6, 0.0, max_duty) as u32);
+                ctrl.set_duty(x_corr, y_corr, z_corr, total_thrust());
+
                 unsafe {
                     if STATUS_REQ == true {
                         STATUS_REQ = false;
@@ -360,14 +363,7 @@ fn main() -> ! {
                               dcm,
                               biased_gyro);
                         info!(l,
-                              "Motors: 1:{};2:{};3:{};4:{};5:{};6:{}; max {}\r\n",
-                              m1_rear_right.get_duty(),
-                              m2_front_right.get_duty(),
-                              m3_rear_left.get_duty(),
-                              m4_front_left.get_duty(),
-                              m5_left.get_duty(),
-                              m6_right.get_duty(),
-                              m4_front_left.get_max_duty());
+                              "Motors: {:?}; max {}\r\n", ctrl.get_duty(), ctrl.max_duty);
                         info!(l,
                               "Tthrust: {}; pk: {}; pipk: {}; ypk: {}; rpk: {}\r\n",
                               total_thrust(),
