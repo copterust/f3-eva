@@ -1,7 +1,6 @@
 use hal::gpio::{AltFn, Gpioa, HighSpeed, PullNone, PushPull, AF7, PA10, PA9};
 use hal::prelude::*;
 use hal::serial::Serial;
-use hal::stm32f30x;
 
 // Initialization support
 
@@ -39,22 +38,27 @@ macro_rules! _init_i2c {
     };
 }
 
-
 macro_rules! _inter {
-    (USART1, $p: path, $st: ty, $is: expr) => {
-        interrupt!(USART1_EXTI25, usart_int, state: $st = $is);
+    (USART1, $p: path) => {
+        #[interrupt]
+        fn USART1_EXTI25() {
+            $p()
+        }
     };
-    (USART2, $p: path, $st: ty, $is: expr) => {
-        interrupt!(USART2_EXTI26, usart_int, state: $st = $is);
+    (USART2, $p: path) => {
+        #[interrupt]
+        fn USART2_EXTI26() {
+            $p();
+        }
     };
 }
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 macro_rules! use_serial {
-    ($u: ident, $int: path, state: $State:ty = $initial_state:expr
+    ($u: ident, $int: path
     ) => {
         type USART = stm32f30x::$u;
-        _inter!($u, $int, $State, $initial_state);
+        _inter!($u, $int);
         macro_rules! init_serial {
             ($device:ident,
              $gp:ident,

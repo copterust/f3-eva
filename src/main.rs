@@ -56,9 +56,9 @@ use shared_bus::CortexMBusManager as SharedBus;
 use vl53l0x;
 
 #[cfg(feature = "usart1")]
-use_serial!(USART1, usart_int, state: Option<Cmd> = None);
+use_serial!(USART1, process_cmd);
 #[cfg(feature = "usart2")]
-use_serial!(USART2, usart_int, state: Option<Cmd> = None);
+use_serial!(USART2, process_cmd);
 
 type L = logging::SerialLogger<Tx<USART>,
                                gpio::PC14<PullNone,
@@ -66,6 +66,7 @@ type L = logging::SerialLogger<Tx<USART>,
 pub type Vector3 = nalgebra::Vector3<f32>;
 pub type Vector2 = nalgebra::Vector2<f32>;
 
+static mut CMD: Option<Cmd> = None;
 static mut L: Option<L> = None;
 static mut RX: Option<Rx<USART>> = None;
 static mut BOOTLOADER: Option<bootloader::stm32f30x::Bootloader> = None;
@@ -230,6 +231,7 @@ fn main() -> ! {
     let motor = CorelessMotor::new();
 
     unsafe {
+        CMD = Some(Cmd::new());
         L = Some(l);
         BOOTLOADER = Some(bootloader);
         RX = Some(rx);
@@ -446,7 +448,8 @@ fn dkoef() -> f32 {
     unsafe { D_KOEFF }
 }
 
-fn process_cmd(cmd: &mut cmd::Cmd) {
+fn process_cmd() {
+    let cmd = unsafe { extract(&mut CMD) };
     let rx = unsafe { extract(&mut RX) };
     let l = unsafe { extract(&mut L) };
     let bootloader = unsafe { extract(&mut BOOTLOADER) };
@@ -533,15 +536,6 @@ fn process_cmd(cmd: &mut cmd::Cmd) {
             },
         },
     };
-}
-
-fn usart_int(state: &mut Option<cmd::Cmd>) {
-    if state.is_none() {
-        *state = Some(Cmd::new());
-    }
-    if let Some(cmd) = state.as_mut() {
-        process_cmd(cmd)
-    }
 }
 
 #[exception]
