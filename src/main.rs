@@ -205,27 +205,41 @@ fn main() -> ! {
 
     info!(l, "motors ok\r\n");
 
-    let mut ctrl = mixer::MotorCtrl {
-        map: mixer::Map6::from_row_slice(&[
-            0.567, -0.815, -1.0, 1.0, // rear left
-            0.567, 0.815, -1.0, 1.0, // front right
-            -0.567, -0.815, 1.0, 1.0, // rear left
-            -0.567, 0.815, 1.0, 1.0, // front left
-            -1.0, -0.0, -1.0, 1.0, // left
-            1.0, -0.0, 1.0, 1.0, // right
-        ]),
+    let mut ctrl = mixer::MotorCtrl { map:
+                                          mixer::Map6::from_row_slice(&[0.567,
+                                                                        -0.815,
+                                                                        -1.0,
+                                                                        1.0, /* rear left */
+                                                                        0.567,
+                                                                        0.815,
+                                                                        -1.0,
+                                                                        1.0, /* front right */
+                                                                        -0.567,
+                                                                        -0.815,
+                                                                        1.0,
+                                                                        1.0, /* rear left */
+                                                                        -0.567,
+                                                                        0.815,
+                                                                        1.0,
+                                                                        1.0, /* front left */
+                                                                        -1.0,
+                                                                        -0.0,
+                                                                        -1.0,
+                                                                        1.0, /* left */
+                                                                        1.0,
+                                                                        -0.0,
+                                                                        1.0,
+                                                                        1.0 /* right */]),
 
-        max_duty: m1_rear_right.get_max_duty() as f32,
+                                      max_duty: m1_rear_right.get_max_duty()
+                                                as f32,
 
-        pin: (
-            m1_rear_right,
-            m2_front_right,
-            m3_rear_left,
-            m4_front_left,
-            m5_left,
-            m6_right,
-        ),
-    };
+                                      pin: (m1_rear_right,
+                                            m2_front_right,
+                                            m3_rear_left,
+                                            m4_front_left,
+                                            m5_left,
+                                            m6_right) };
 
     let esc = ESC::new();
     let motor = CorelessMotor::new();
@@ -365,7 +379,9 @@ fn main() -> ! {
                               dcm,
                               biased_gyro);
                         info!(l,
-                              "Motors: {:?}; max {}\r\n", ctrl.get_duty(), ctrl.max_duty);
+                              "Motors: {:?}; max {}\r\n",
+                              ctrl.get_duty(),
+                              ctrl.max_duty);
                         info!(l,
                               "Tthrust: {}; pk: {}; pipk: {}; ypk: {}; rpk: {}\r\n",
                               total_thrust(),
