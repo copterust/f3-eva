@@ -536,15 +536,12 @@ fn process_cmd() {
         Err(nb::Error::Other(e)) => match e {
             serial::Error::Overrun => {
                 info!(l, "read error: {:?}\r\n", e);
-                rx.clear_overrun_error();
             },
             serial::Error::Framing => {
                 info!(l, "read error: {:?}\r\n", e);
-                rx.clear_framing_error();
             },
             serial::Error::Noise => {
                 info!(l, "read error: {:?}\r\n", e);
-                rx.clear_noise_error();
             },
             _ => {
                 l.blink();
