@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 
 use core::f32::consts::PI;
+use nalgebra::Matrix;
 use dcmimu::EulerAngles;
 use libm::F32Ext;
 use nalgebra::clamp;
@@ -87,7 +88,7 @@ impl Controller {
         let mut cmd = self.MOI.clone();
         cmd.component_mul_assign(&self.KpPQR);
         cmd.component_mul_assign(&err);
-        let norm = Vector3::norm(&cmd);
+        let norm = Matrix::norm(&cmd);
         if norm > self.MaxTorque {
             cmd = cmd * self.MaxTorque / norm;
         }
