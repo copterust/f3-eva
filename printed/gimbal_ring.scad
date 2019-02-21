@@ -71,7 +71,7 @@ module drone() {
     }
 }
 
-module ring() {
+module ring(ird) {
     union() {
         difference () {
             cylinder(r1 = ird / 2 + bh,
@@ -95,10 +95,10 @@ module ring() {
     }
 }
 
-module half_ring(pegs = true) {
+module half_ring(ird, pegs = true) {
     difference() {
         union() {
-            ring();
+            ring(ird);
                 // pegs to next ring
                 if (pegs) {
                 translate([0, bhw * 2 + ird / 2 + pl / 2, 0])
@@ -179,5 +179,24 @@ ird = 2 * (rp + margin);
 // Don't forget to comment this out before exporting STL!
 rotate([36.9, 0, 0]) color("blue", 0.5) drone();
 
-// Printed part, use pegs = false for an outer ring
-half_ring();
+// Printed parts
+
+// Ring 0
+half_ring(ird);
+
+// Ring 1
+h = (2 * (bhw + bh) + ird) / 2;
+ird2 = sqrt(pow(h, 2) + pow(bod / 2 + bhw / 2, 2));
+rotate([0, 0, 90])
+    half_ring((ird2 + margin) * 2);
+
+// Ring 2
+h2 = (2 * (bhw + bh) + (ird2 + margin) * 2) / 2;
+ird3 = sqrt(pow(h2, 2) + pow(bod / 2 + bhw / 2, 2));
+half_ring((ird3 + margin) * 2);
+
+// Outer ring
+h3 = (2 * (bhw + bh) + (ird3 + margin) * 2) / 2;
+ird4 = sqrt(pow(h3, 2) + pow(bod / 2 + bhw / 2, 2));
+rotate([0, 0, 90])
+    half_ring((ird4 + margin) * 2, pegs = false);
