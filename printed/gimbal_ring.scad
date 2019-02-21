@@ -1,5 +1,4 @@
-// Single ring for a quadcopter test gimbal
-// of the https://github.com/copterust/ project
+// Quadcopter test gimbal for the https://github.com/copterust/ project
 
 // Based on 105 frame
 dfh = 88;   // height of frame by the outermost side of motors
