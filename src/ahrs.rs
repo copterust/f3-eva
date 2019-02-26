@@ -9,7 +9,6 @@ use mpu9250::Mpu9250;
 use nalgebra::geometry::Quaternion;
 use nalgebra::Vector3;
 
-
 // Magnetometer calibration parameters
 // NOTE you need to use the right parameters for *your* magnetometer
 // You can use the `log-sensors` example to calibrate your magnetometer. The
@@ -23,20 +22,19 @@ use nalgebra::Vector3;
 // const M_SCALE_Z: f32 = 1.2;
 
 // TODO: make generic over Imu/Marg
-pub struct AHRS<SPI, NCS, F> {
-    mpu: Mpu9250<SPI, NCS, mpu9250::Imu>,
+pub struct AHRS<DEV, F> {
+    mpu: Mpu9250<DEV, mpu9250::Imu>,
     dcmimu: DCMIMU,
     accel_biases: Vector3<f32>,
     last_measurement_ms: u32,
     timer_ms: F,
 }
 
-impl<SPI, NCS, E, F> AHRS<SPI, NCS, F>
-    where SPI: spi::Write<u8, Error = E> + spi::Transfer<u8, Error = E>,
-          NCS: OutputPin,
+impl<DEV, E, F> AHRS<DEV, F>
+    where DEV: mpu9250::Device<Error = E>,
           F: Fn<(), Output = u32>
 {
-    pub fn create_calibrated<D>(mut mpu: Mpu9250<SPI, NCS, mpu9250::Imu>,
+    pub fn create_calibrated<D>(mut mpu: Mpu9250<DEV, mpu9250::Imu>,
                                 delay: &mut D,
                                 timer_ms: F)
                                 -> Result<Self, mpu9250::Error<E>>
@@ -55,10 +53,10 @@ impl<SPI, NCS, E, F> AHRS<SPI, NCS, F>
         Ok(AHRS { mpu, dcmimu, accel_biases, last_measurement_ms, timer_ms })
     }
 
-    pub fn estimate<W>(&mut self, l: &mut W) -> Result<(dcmimu::EulerAngles,
-                                                        Vector3<f32>,
-                                                        f32), E>
-    where W: core::fmt::Write
+    pub fn estimate<W>(&mut self,
+                       l: &mut W)
+                       -> Result<(dcmimu::EulerAngles, Vector3<f32>, f32), E>
+        where W: core::fmt::Write
     {
         let meas = self.mpu.all()?;
         let t_ms = (self.timer_ms)();
@@ -73,9 +71,15 @@ impl<SPI, NCS, E, F> AHRS<SPI, NCS, F>
         let gyro_biases =
             Vector3::new(gyro_biases.x, gyro_biases.y, gyro_biases.z);
         gyro = gyro - gyro_biases;
-        debug!(l, "typrxyz,{},{},{},{},{},{},{}\r\n", dt_s,
-                dcm.yaw, dcm.pitch, dcm.roll,
-                gyro.x, gyro.y, gyro.z);
+        debug!(l,
+               "typrxyz,{},{},{},{},{},{},{}\r\n",
+               dt_s,
+               dcm.yaw,
+               dcm.pitch,
+               dcm.roll,
+               gyro.x,
+               gyro.y,
+               gyro.z);
         Ok((dcm, gyro, dt_s))
     }
 }
