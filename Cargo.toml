@@ -24,11 +24,12 @@ incremental = false # nalgebra
 [dependencies]
 nb = "0.1.1"
 cortex-m = {version = "0.5.8", features = ["inline-asm", "const-fn"]}
-mpu9250 = "0.9.0"
+cortex-m-rt = "0.6.7"
+cortex-m-rtfm = {version = "0.4.2", features = ["nightly"]}
+mpu9250 = "0.9.3"
 # mpu9250 = {path = "../mpu9250"}
 libm = "0.1.2"
 dcmimu = "0.2.1"
-cortex-m-rt = "0.6.5"
 lsm303c = "0.1.5"
 bmp280 = {version = "0.0.3", package="bmp280-ehal"}
 shared-bus = {version = "0.1.2", features = ["cortexm"]}
@@ -41,7 +42,7 @@ version = "0.2.1"
 package = "embedded-hal"
 
 [dependencies.hal]
-version = "0.12.1"
+version = "0.13.0"
 package = "alt-stm32f30x-hal"
 features = ["rt"]
 
