@@ -1,4 +1,5 @@
-use hal::gpio::{AltFn, Gpioa, HighSpeed, PullNone, PushPull, AF7, PA10, PA9};
+use hal::gpio::{AltFn, Gpioa, HighSpeed, PullNone, PushPull, AF7};
+use hal::gpio::{PA10, PA14, PA15, PA9};
 use hal::prelude::*;
 use hal::serial::Serial;
 
@@ -18,6 +19,31 @@ macro_rules! _init_serial {
      $br: expr,
      $clocks: expr) => {
         $device.USART2.serial(($gp.pa14, $gp.pa15), $br, $clocks)
+    };
+}
+
+macro_rules! _type_i2c {
+    (USART1) => {
+        type I2C = hal::i2c::I2c<stm32f30x::I2C1,
+                        (::hal::gpio::PA15<::hal::gpio::PullNone,
+                                           ::hal::gpio::AltFn<::hal::gpio::AF4,
+                                                              ::hal::gpio::PushPull,
+                                                              ::hal::gpio::HighSpeed>>,
+                         ::hal::gpio::PA14<::hal::gpio::PullNone,
+                                           ::hal::gpio::AltFn<::hal::gpio::AF4,
+                                                              ::hal::gpio::PushPull,
+                                                              ::hal::gpio::HighSpeed>>)>;
+    };
+    (USART2) => {
+        type I2C = hal::i2c::I2c<stm32f30x::I2C2,
+                                 (::hal::gpio::PA9<::hal::gpio::PullNone,
+                                           ::hal::gpio::AltFn<::hal::gpio::AF4,
+                                                              ::hal::gpio::PushPull,
+                                  ::hal::gpio::HighSpeed>>,
+                                  ::hal::gpio::PA10<::hal::gpio::PullNone,
+                                           ::hal::gpio::AltFn<::hal::gpio::AF4,
+                                                              ::hal::gpio::PushPull,
+                                                              ::hal::gpio::HighSpeed>>)>;
     };
 }
 
@@ -58,7 +84,7 @@ macro_rules! use_serial {
     ($u: ident, $int: path
     ) => {
         type USART = stm32f30x::$u;
-        _inter!($u, $int);
+        // _inter!($u, $int);
         macro_rules! init_serial {
             ($device:ident,
              $gp:ident,
@@ -68,6 +94,7 @@ macro_rules! use_serial {
                 _init_serial!($u, $device, $gp, $br, $clocks)
             };
         }
+        _type_i2c!($u);
         macro_rules! init_i2c {
             ($device:ident,
              $gp:ident,

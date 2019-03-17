@@ -3,10 +3,12 @@ use ehal::blocking::delay::DelayMs;
 use hal::delay::Delay;
 use nalgebra::Vector3;
 
+// use asm_delay
 pub fn tick_delay(ticks: usize) {
     (0..ticks).for_each(|_| asm::nop());
 }
 
+// use asm_delay
 // XXX: migrate to Duration?
 pub trait WallClockDelay: DelayMs<u32> {
     const MAX_STEP_DELAY: u32;

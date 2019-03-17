@@ -1,10 +1,10 @@
 #![allow(non_snake_case)]
 
 use core::f32::consts::PI;
-use nalgebra::Matrix;
 use dcmimu::EulerAngles;
 use libm::F32Ext;
 use nalgebra::clamp;
+use nalgebra::Matrix;
 
 use crate::{Vector2, Vector3};
 

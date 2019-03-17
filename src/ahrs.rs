@@ -1,3 +1,4 @@
+use crate::chrono::Chrono;
 use crate::utils::vec_to_tuple;
 
 use dcmimu::DCMIMU;
@@ -22,21 +23,20 @@ use nalgebra::Vector3;
 // const M_SCALE_Z: f32 = 1.2;
 
 // TODO: make generic over Imu/Marg
-pub struct AHRS<DEV, F> {
+pub struct AHRS<DEV, T> {
     mpu: Mpu9250<DEV, mpu9250::Imu>,
     dcmimu: DCMIMU,
     accel_biases: Vector3<f32>,
-    last_measurement_ms: u32,
-    timer_ms: F,
+    timer_ms: T,
 }
 
-impl<DEV, E, F> AHRS<DEV, F>
+impl<DEV, E, T> AHRS<DEV, T>
     where DEV: mpu9250::Device<Error = E>,
-          F: Fn<(), Output = u32>
+          T: Chrono
 {
     pub fn create_calibrated<D>(mut mpu: Mpu9250<DEV, mpu9250::Imu>,
                                 delay: &mut D,
-                                timer_ms: F)
+                                timer_ms: T)
                                 -> Result<Self, mpu9250::Error<E>>
         where D: DelayMs<u8>
     {
@@ -49,8 +49,11 @@ impl<DEV, E, F> AHRS<DEV, F>
         // TODO: find real Z axis.
         accel_biases.z -= mpu9250::G;
         let dcmimu = DCMIMU::new();
-        let last_measurement_ms = timer_ms();
-        Ok(AHRS { mpu, dcmimu, accel_biases, last_measurement_ms, timer_ms })
+        Ok(AHRS { mpu, dcmimu, accel_biases, timer_ms })
+    }
+
+    pub fn setup_time(&mut self) {
+        self.timer_ms.reset();
     }
 
     pub fn estimate<W>(&mut self,
@@ -59,10 +62,7 @@ impl<DEV, E, F> AHRS<DEV, F>
         where W: core::fmt::Write
     {
         let meas = self.mpu.all()?;
-        let t_ms = (self.timer_ms)();
-        let dt_ms = t_ms.wrapping_sub(self.last_measurement_ms);
-        let dt_s = dt_ms as f32 / 1000.0;
-        self.last_measurement_ms = t_ms;
+        let dt_s = self.timer_ms.split_time_s();
         let accel = meas.accel - self.accel_biases;
         let mut gyro = meas.gyro;
 
