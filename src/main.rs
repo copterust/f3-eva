@@ -302,8 +302,8 @@ const APP: () = {
                               ALT_CLOCK: chrono::rtfm_stopwatch(freq) }
     }
 
-    #[idle(resources = [L,
-                        STATUS_REQ,
+    #[idle(resources = [STATUS_REQ,
+                        L,
                         AHRS,
                         ALT_CONTROLLER,
                         TOF,
