@@ -50,7 +50,7 @@ use nb;
 
 // devices
 // use bmp280::{self, BMP280};
-use mpu9250::Mpu9250;
+use mpu9250::{Mpu9250, MpuConfig};
 // use lsm303c::Lsm303c;
 use shared_bus::CortexMBusManager as SharedBus;
 use vl53l0x;
@@ -149,8 +149,22 @@ fn main() -> ! {
                               clocks);
     info!(l, "spi ok\r\n");
     // MPU
+    let gyro_rate = mpu9250::GyroTempDataRate::DlpfConf(mpu9250::Dlpf::_2);
     let mut mpu9250 =
-        Mpu9250::imu_default(spi, ncs, &mut delay).expect("mpu error");
+        Mpu9250::imu_with_reinit(spi,
+                                 ncs,
+                                 &mut delay,
+                                 &mut MpuConfig::imu().gyro_temp_data_rate(gyro_rate).sample_rate_divisor(3),
+                                 |spi, ncs| {
+                                     let (dev_spi, (scl, miso, mosi)) =
+                                         spi.free();
+                                     let new_spi =
+                                         dev_spi.spi((scl, miso, mosi),
+                                                     mpu9250::MODE,
+                                                     20.mhz(),
+                                                     clocks);
+                                     Some((new_spi, ncs))
+                                 }).unwrap();
     let mut ahrs =
         ahrs::AHRS::create_calibrated(mpu9250, &mut delay, now_ms2).expect("ahrs error");
     // i2c stuff, sensors
