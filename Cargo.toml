@@ -24,7 +24,8 @@ incremental = false # nalgebra
 [dependencies]
 nb = "0.1.1"
 cortex-m = {version = "0.5.8", features = ["inline-asm", "const-fn"]}
-mpu9250 = "0.10.1"
+mpu9250 = "0.11"
+asm-delay = "0.5.1"
 # mpu9250 = {path = "../mpu9250"}
 libm = "0.1.2"
 dcmimu = "0.2.1"
@@ -41,13 +42,13 @@ version = "0.2.1"
 package = "embedded-hal"
 
 [dependencies.hal]
-version = "0.12.1"
+version = "0.16"
 package = "alt-stm32f30x-hal"
 features = ["rt"]
 
 [dependencies.nalgebra]
 default-features = false
-version = "0.16.13"
+version = "0.18"
 
 [features]
 usart1 = []

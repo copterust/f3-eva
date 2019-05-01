@@ -5,9 +5,13 @@
 #![feature(asm)]
 #![feature(fn_traits, unboxed_closures)]
 #![allow(unused)]
+#![feature(const_fn)]
+#![feature(impl_trait_in_bindings)]
+#![feature(existential_type)]
 
 // internal
 mod bootloader;
+mod chrono;
 mod cmd;
 mod constants;
 mod esc;
@@ -74,6 +78,7 @@ static mut ESC: Option<ESC> = None;
 static mut MOTORS: Option<CorelessMotor> = None;
 
 static mut P_KOEFF: f32 = 0.;
+static mut PITCH_TARGET: f32 = 0.;
 static mut PITCH_KOEFF: f32 = 0.;
 static mut YAW_KOEFF: f32 = 0.;
 static mut ROLL_KOEFF: f32 = 0.;
@@ -165,8 +170,9 @@ fn main() -> ! {
                                                      clocks);
                                      Some((new_spi, ncs))
                                  }).unwrap();
+    let chrono = chrono::stopwatch(core.DWT, core.DCB, clocks);
     let mut ahrs =
-        ahrs::AHRS::create_calibrated(mpu9250, &mut delay, now_ms2).expect("ahrs error");
+        ahrs::AHRS::create_calibrated(mpu9250, &mut delay, chrono).expect("ahrs error");
     // i2c stuff, sensors
     let i2c = init_i2c!(device, gpioa, 400.khz(), clocks);
     info!(l, "i2c ok\r\n");
@@ -183,16 +189,14 @@ fn main() -> ! {
     // // tof
     let mut tof = vl53l0x::VL53L0x::new(bus.acquire()).expect("vl");
     info!(l, "vl/tof ok\r\n");
-    tof.set_measurement_timing_budget(200000).expect("timbudg");
-    info!(l, "meas budget set; start cont \r\n");
-    tof.start_continuous(0).expect("start cont");
+    // tof.set_measurement_timing_budget(200000).expect("timbudg");
+    // info!(l, "meas budget set; start cont \r\n");
+    // tof.start_continuous(0).expect("start cont");
+
     // MOTORS:
     // pa0 -- pa3
     let (ch1, ch2, ch3, ch4, mut timer2) =
-        timer::tim2::Timer::new(device.TIM2,
-                                c::TIM_FREQ,
-                                clocks,
-                                &mut rcc.apb1).take_all();
+        timer::tim2::Timer::new(device.TIM2, c::TIM_FREQ, clocks).take_all();
     let mut m1_rear_right =
         gpioa.pa0.pull_type(PullUp).to_pwm(ch1, MediumSpeed);
     let mut m2_front_right =
@@ -207,10 +211,7 @@ fn main() -> ! {
     timer2.enable();
 
     let (ch5, ch6, _, _, mut timer3) =
-        timer::tim3::Timer::new(device.TIM3,
-                                c::TIM_FREQ,
-                                clocks,
-                                &mut rcc.apb1).take_all();
+        timer::tim3::Timer::new(device.TIM3, c::TIM_FREQ, clocks).take_all();
     let mut m5_left = gpioa.pa6.pull_type(PullUp).to_pwm(ch5, MediumSpeed);
     let mut m6_right = gpioa.pa7.pull_type(PullUp).to_pwm(ch6, MediumSpeed);
     m5_left.enable();
@@ -219,41 +220,22 @@ fn main() -> ! {
 
     info!(l, "motors ok\r\n");
 
-    let mut ctrl = mixer::MotorCtrl { map:
-                                          mixer::Map6::from_row_slice(&[0.567,
-                                                                        -0.815,
-                                                                        -1.0,
-                                                                        1.0, /* rear left */
-                                                                        0.567,
-                                                                        0.815,
-                                                                        -1.0,
-                                                                        1.0, /* front right */
-                                                                        -0.567,
-                                                                        -0.815,
-                                                                        1.0,
-                                                                        1.0, /* rear left */
-                                                                        -0.567,
-                                                                        0.815,
-                                                                        1.0,
-                                                                        1.0, /* front left */
-                                                                        -1.0,
-                                                                        -0.0,
-                                                                        -1.0,
-                                                                        1.0, /* left */
-                                                                        1.0,
-                                                                        -0.0,
-                                                                        1.0,
-                                                                        1.0 /* right */]),
+    #[cfg_attr(rustfmt, rustfmt_skip)]
+    let mut ctrl = mixer::MotorCtrl {
+        map: mixer::Map4::from_row_slice(&[
+            /* rear right  */  1., -1., -1., 1.,
+            /* front right */  1.,  1.,  1., 1.,
+            /* rear left   */ -1., -1., -1., 1.,
+            /* front left  */ -1.,  1.,  1., 1.
+        ]),
 
-                                      max_duty: m1_rear_right.get_max_duty()
-                                                as f32,
+        max_duty: m1_rear_right.get_max_duty()
+            as f32,
 
-                                      pin: (m1_rear_right,
-                                            m2_front_right,
-                                            m3_rear_left,
-                                            m4_front_left,
-                                            m5_left,
-                                            m6_right) };
+        pin: (m1_rear_right,
+              m2_front_right,
+              m3_rear_left,
+              m4_front_left) };
 
     let esc = ESC::new();
     let motor = CorelessMotor::new();
@@ -286,9 +268,9 @@ fn main() -> ! {
     syst.clear_current();
     syst.enable_interrupt();
     syst.enable_counter();
-    let initial_altitude: f32 =
-        (tof.read_range_mm().expect("initial tof read error") as f32) / 1000.;
-    // info!(l,
+    // let initial_altitude: f32 =
+    //     (tof.read_range_mm().expect("initial tof read error") as f32) /
+    // 1000.; info!(l,
     //       "max duty (arr): {}; pressure: {}; target: {}; alt bias: {}\r\n",
     //       max_duty,
     //       original_pressure,
@@ -311,47 +293,48 @@ fn main() -> ! {
         let mut prev_err_z = 0.;
         match ahrs.estimate(l) {
             Ok((dcm, biased_gyro, dt_s)) => {
-                if is_takeoff() {
-                    match tof.read_range_mm() {
-                        Ok(v) => {
-                            // if >= 8092...
-                            let current_time_ms = now_ms();
-                            let current_time_s = current_time_ms as f32 / 1000.;
-                            let time_diff_s =
-                                current_time_ms.wrapping_sub(alt_tm_ms) as f32
-                                / 1000.;
-                            alt_tm_ms = current_time_ms;
-                            elapsed_s += time_diff_s;
-                            let (h0, h1, t0, t1) =
-                                if elapsed_s < takeoff_duration_s {
-                                    (0.0, takeoff_to, 0.0, takeoff_duration_s)
-                                } else {
-                                    (takeoff_to, takeoff_to, 0.0, 1.0)
-                                };
-                            let current_altitude =
-                                (v as f32) / 1000. - initial_altitude;
-                            let traversed = current_altitude - altitude;
-                            altitude = current_altitude;
-                            vertical_velocity = traversed / time_diff_s;
-                            let target_alt =
-                                h0 + (h1 - h0) * (elapsed_s - t0) / (t1 - t0);
-                            let target_vertical_veloctity =
-                                (h1 - h0) / (t1 - t0);
-                            let alt_thrust = alt_controller.altitude(
-                                target_alt,
-                                target_vertical_veloctity,
-                                altitude,
-                                vertical_velocity,
-                                dcm,
-                                G);
-                            let thrust = alt_thrust * START_THRUST;
-                            unsafe {
-                                TOTAL_THRUST = thrust;
-                            }
-                        },
-                        Err(_) => {},
-                    };
-                }
+                // if is_takeoff() {
+                //     match tof.read_range_mm() {
+                //         Ok(v) => {
+                //             // if >= 8092...
+                //             let current_time_ms = now_ms();
+                //             let current_time_s = current_time_ms as f32 /
+                // 1000.;             let time_diff_s =
+                //                 current_time_ms.wrapping_sub(alt_tm_ms) as
+                // f32                 / 1000.;
+                //             alt_tm_ms = current_time_ms;
+                //             elapsed_s += time_diff_s;
+                //             let (h0, h1, t0, t1) =
+                //                 if elapsed_s < takeoff_duration_s {
+                //                     (0.0, takeoff_to, 0.0,
+                // takeoff_duration_s)                 } else {
+                //                     (takeoff_to, takeoff_to, 0.0, 1.0)
+                //                 };
+                //             let current_altitude =
+                //                 (v as f32) / 1000. - initial_altitude;
+                //             let traversed = current_altitude - altitude;
+                //             altitude = current_altitude;
+                //             vertical_velocity = traversed / time_diff_s;
+                //             let target_alt =
+                //                 h0 + (h1 - h0) * (elapsed_s - t0) / (t1 -
+                // t0);             let
+                // target_vertical_veloctity =
+                // (h1 - h0) / (t1 - t0);             let
+                // alt_thrust = alt_controller.altitude(
+                //                 target_alt,
+                //                 target_vertical_veloctity,
+                //                 altitude,
+                //                 vertical_velocity,
+                //                 dcm,
+                //                 G);
+                //             let thrust = alt_thrust * START_THRUST;
+                //             unsafe {
+                //                 TOTAL_THRUST = thrust;
+                //             }
+                //         },
+                //         Err(_) => {},
+                //     };
+                // }
 
                 // let x_err = 0. - g.x;
                 // let z_err = 0. - g.z;
@@ -360,7 +343,7 @@ fn main() -> ! {
                 let ik = ikoef();
                 let dk = dkoef();
                 // pitch-roll ctrl
-                let pitch_err = 0. - dcm.pitch;
+                let pitch_err = pitch_target() - dcm.pitch;
                 let pitch_u = pitch_err * pitch_pkoef();
                 let yaw_err = 0. - dcm.yaw;
                 let yaw_u = yaw_err * yaw_pkoef();
@@ -458,6 +441,10 @@ fn pkoef() -> f32 {
     unsafe { P_KOEFF }
 }
 
+fn pitch_target() -> f32 {
+    unsafe { PITCH_TARGET }
+}
+
 fn pitch_pkoef() -> f32 {
     unsafe { PITCH_KOEFF }
 }
@@ -514,6 +501,12 @@ fn process_cmd() {
                                P_KOEFF = pk as f32
                            };
                        },
+                       ["pt=", pt:i32] => {
+                           unsafe {
+                               PITCH_TARGET = pt as f32
+                           };
+                       },
+
                        ["pipk=", pipk:i32] => {
                            unsafe {
                                PITCH_KOEFF = pipk as f32
