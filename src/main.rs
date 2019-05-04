@@ -195,8 +195,8 @@ fn main() -> ! {
 
     // MOTORS:
     // pa0 -- pa3
-    let (ch1, ch2, ch3, ch4, mut timer2) =
-        timer::tim2::Timer::new(device.TIM2, c::TIM_FREQ, clocks).take_all();
+    let ((ch1, ch2, ch3, ch4), mut timer2) =
+        timer::tim2::Timer::new(device.TIM2, c::TIM_FREQ, clocks).use_pwm();
     let mut m1_rear_right =
         gpioa.pa0.pull_type(PullUp).to_pwm(ch1, MediumSpeed);
     let mut m2_front_right =
@@ -210,8 +210,8 @@ fn main() -> ! {
     m4_front_left.enable();
     timer2.enable();
 
-    let (ch5, ch6, _, _, mut timer3) =
-        timer::tim3::Timer::new(device.TIM3, c::TIM_FREQ, clocks).take_all();
+    let ((ch5, ch6, _, _), mut timer3) =
+        timer::tim3::Timer::new(device.TIM3, c::TIM_FREQ, clocks).use_pwm();
     let mut m5_left = gpioa.pa6.pull_type(PullUp).to_pwm(ch5, MediumSpeed);
     let mut m6_right = gpioa.pa7.pull_type(PullUp).to_pwm(ch6, MediumSpeed);
     m5_left.enable();
