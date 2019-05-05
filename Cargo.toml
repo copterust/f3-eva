@@ -42,9 +42,10 @@ version = "0.2.1"
 package = "embedded-hal"
 
 [dependencies.hal]
-version = "0.18"
+version = "0.19"
+# path = "../alt-stm32f30x-hal"
 package = "alt-stm32f30x-hal"
-features = ["rt"]
+features = ["rt", "stm32f303"]
 
 [dependencies.nalgebra]
 default-features = false

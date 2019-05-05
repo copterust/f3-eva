@@ -57,7 +57,7 @@ macro_rules! _inter {
 macro_rules! use_serial {
     ($u: ident, $int: path
     ) => {
-        type USART = stm32f30x::$u;
+        type USART = hal::pac::$u;
         _inter!($u, $int);
         macro_rules! init_serial {
             ($device:ident,

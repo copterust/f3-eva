@@ -44,10 +44,10 @@ use ehal;
 use hal::delay::Delay;
 use hal::gpio::{self, AltFn, AF5, AF7};
 use hal::gpio::{LowSpeed, MediumSpeed, Output, PullNone, PullUp, PushPull};
+use hal::pac::{self, interrupt, Interrupt};
 use hal::prelude::*;
 use hal::serial::{self, Rx, Serial, Tx};
 use hal::spi::Spi;
-use hal::stm32f30x::{self, interrupt, Interrupt};
 use hal::timer;
 use nalgebra::{self, clamp};
 use nb;
@@ -116,7 +116,7 @@ fn main() -> ! {
     let mut bootloader = bootloader::stm32f30x::Bootloader::new();
     bootloader.check_request();
     let core = cortex_m::Peripherals::take().unwrap();
-    let device = hal::stm32f30x::Peripherals::take().unwrap();
+    let device = hal::pac::Peripherals::take().unwrap();
 
     let mut rcc = device.RCC.constrain();
     let gpioa = device.GPIOA.split(&mut rcc.ahb);
