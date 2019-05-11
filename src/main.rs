@@ -78,7 +78,7 @@ static mut ESC: Option<ESC> = None;
 static mut MOTORS: Option<CorelessMotor> = None;
 
 static mut P_KOEFF: f32 = 0.;
-static mut PITCH_TARGET: f32 = 0.;
+static mut PITCH_TARGET: i32 = 0;
 static mut PITCH_KOEFF: f32 = 0.;
 static mut YAW_KOEFF: f32 = 0.;
 static mut ROLL_KOEFF: f32 = 0.;
@@ -88,8 +88,9 @@ static mut TOTAL_THRUST: f32 = 0.;
 static mut TAKEOFF: bool = false;
 
 static mut NOW_MS: u32 = 0;
-static mut NOW_MS2: u32 = 0;
 static mut STATUS_REQ: bool = false;
+static mut PITCH_REQ: bool = false;
+static mut PREQ_NUMBER: u32 = 0;
 
 pub const START_THRUST: f32 = 1350.;
 pub const MAX_THRUST: f32 = 1950.;
@@ -100,14 +101,15 @@ fn now_ms() -> u32 {
     unsafe { core::ptr::read_volatile(&NOW_MS as *const u32) }
 }
 
-fn now_ms2() -> u32 {
-    unsafe { core::ptr::read_volatile(&NOW_MS2 as *const u32) }
-}
-
 #[exception]
 unsafe fn SysTick() {
-    NOW_MS = NOW_MS.wrapping_add(1);
-    NOW_MS2 = NOW_MS2.wrapping_add(1);
+    // NOW_MS = NOW_MS.wrapping_add(1);
+    PREQ_NUMBER += 1;
+
+    if PREQ_NUMBER == 5000 {
+        PITCH_REQ = true;
+        PREQ_NUMBER = 0;
+    }
 }
 
 #[entry]
@@ -343,7 +345,8 @@ fn main() -> ! {
                 let ik = ikoef();
                 let dk = dkoef();
                 // pitch-roll ctrl
-                let pitch_err = pitch_target() - dcm.pitch;
+                let pitch_target_rad = pitch_target() * 3.141592 / 180.;
+                let pitch_err = pitch_target_rad - dcm.pitch;
                 let pitch_u = pitch_err * pitch_pkoef();
                 let yaw_err = 0. - dcm.yaw;
                 let yaw_u = yaw_err * yaw_pkoef();
@@ -386,6 +389,12 @@ fn main() -> ! {
                               pitch_pkoef(),
                               yaw_pkoef(),
                               roll_pkoef());
+                    }
+                    if PITCH_REQ == true {
+                        info!(l, "{:?}\r\n", dcm.pitch * 180. / 3.141592);
+                        unsafe {
+                            PITCH_REQ = false;
+                        }
                     }
                 }
             },
@@ -442,7 +451,7 @@ fn pkoef() -> f32 {
 }
 
 fn pitch_target() -> f32 {
-    unsafe { PITCH_TARGET }
+    unsafe { PITCH_TARGET as f32 }
 }
 
 fn pitch_pkoef() -> f32 {
@@ -503,7 +512,7 @@ fn process_cmd() {
                        },
                        ["pt=", pt:i32] => {
                            unsafe {
-                               PITCH_TARGET = pt as f32
+                               PITCH_TARGET = pt;
                            };
                        },
 
