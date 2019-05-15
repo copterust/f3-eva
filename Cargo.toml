@@ -23,9 +23,9 @@ incremental = false # nalgebra
 
 [dependencies]
 nb = "0.1.1"
-cortex-m = {version = "0.5.8", features = ["inline-asm", "const-fn"]}
-mpu9250 = "0.11"
-asm-delay = "0.5.1"
+cortex-m = {version = "0.6.0", features = ["inline-asm", "const-fn"]}
+mpu9250 = "0.12"
+asm-delay = "0.5.2"
 # mpu9250 = {path = "../mpu9250"}
 libm = "0.1.2"
 dcmimu = "0.2.1"
@@ -38,11 +38,11 @@ vl53l0x = "0.2.0"
 
 [dependencies.ehal]
 features = ["unproven"]
-version = "0.2.1"
+version = "0.2.3"
 package = "embedded-hal"
 
 [dependencies.hal]
-version = "0.19"
+version = "0.20"
 # path = "../alt-stm32f30x-hal"
 package = "alt-stm32f30x-hal"
 features = ["rt", "stm32f303"]

@@ -40,7 +40,6 @@ use core::panic::PanicInfo;
 
 // external
 use cortex_m_rt::{entry, exception, ExceptionFrame};
-use ehal;
 use hal::delay::Delay;
 use hal::gpio::{self, AltFn, AF5, AF7};
 use hal::gpio::{LowSpeed, MediumSpeed, Output, PullNone, PullUp, PushPull};

@@ -5,8 +5,7 @@ use crate::utils::vec_to_tuple;
 use dcmimu::DCMIMU;
 use ehal::blocking::delay::DelayMs;
 use ehal::blocking::spi;
-use ehal::digital::OutputPin;
-use libm::{asinf, atan2f, atanf, fabsf, sqrtf};
+use libm::{asinf, atan2f, fabsf, sqrtf};
 use mpu9250::Mpu9250;
 use nalgebra::geometry::Quaternion;
 use nalgebra::Vector3;
@@ -56,31 +55,27 @@ impl<DEV, E, T> AHRS<DEV, T>
         // TODO: find real Z axis.
         // accel_biases.z -= mpu9250::G;
         let dcmimu = DCMIMU::new();
-        let ky = kalman::AngularKalman{
-            q_a: 0.001,
-            q_b: 0.003,
-            r: 0.03,
-            angle: 0.0,
-            bias: 0.0,
-            rate: 0.0,
-            p: [[0.0, 0.0], [0.0, 0.0]],
-            k: [0.0, 0.0],
-            y: 0.0,
-            s: 0.0
-        };
+        let ky = kalman::AngularKalman { q_a: 0.001,
+                                         q_b: 0.003,
+                                         r: 0.03,
+                                         angle: 0.0,
+                                         bias: 0.0,
+                                         rate: 0.0,
+                                         p: [[0.0, 0.0], [0.0, 0.0]],
+                                         k: [0.0, 0.0],
+                                         y: 0.0,
+                                         s: 0.0 };
 
-        let kx = kalman::AngularKalman{
-            q_a: 0.001,
-            q_b: 0.003,
-            r: 0.03,
-            angle: 0.0,
-            bias: 0.0,
-            rate: 0.0,
-            p: [[0.0, 0.0], [0.0, 0.0]],
-            k: [0.0, 0.0],
-            y: 0.0,
-            s: 0.0
-        };
+        let kx = kalman::AngularKalman { q_a: 0.001,
+                                         q_b: 0.003,
+                                         r: 0.03,
+                                         angle: 0.0,
+                                         bias: 0.0,
+                                         rate: 0.0,
+                                         p: [[0.0, 0.0], [0.0, 0.0]],
+                                         k: [0.0, 0.0],
+                                         y: 0.0,
+                                         s: 0.0 };
         Ok(AHRS { mpu,
                   dcmimu,
                   // accel_biases,
@@ -88,8 +83,7 @@ impl<DEV, E, T> AHRS<DEV, T>
                   angle_x: 0.0,
                   angle_y: 0.0,
                   kalman_x: kx,
-                  kalman_y: ky,
-                  })
+                  kalman_y: ky })
     }
 
     pub fn setup_time(&mut self) {
@@ -107,15 +101,19 @@ impl<DEV, E, T> AHRS<DEV, T>
                                 // - self.accel_biases;
         let mut gyro = meas.gyro;
 
-
         // New filter
-        let roll  = atan2f(accel[1], sqrtf(accel[0] * accel[0] + accel[2] * accel[2]));
-        let pitch = atan2f(-accel[0], sqrtf(accel[1] * accel[1] + accel[2] * accel[2]));
+        let roll =
+            atan2f(accel[1], sqrtf(accel[0] * accel[0] + accel[2] * accel[2]));
+        let pitch =
+            atan2f(-accel[0], sqrtf(accel[1] * accel[1] + accel[2] * accel[2]));
 
         let gyro_x = gyro[0];
         let mut gyro_y = gyro[1];
 
-        if ((roll < -1.5707963267948966 && self.angle_x > 1.5707963267948966) || (roll > 1.5707963267948966 && self.angle_x < -1.5707963267948966)) {
+        if ((roll < -1.5707963267948966 && self.angle_x > 1.5707963267948966)
+            || (roll > 1.5707963267948966
+                && self.angle_x < -1.5707963267948966))
+        {
             self.kalman_x.set_angle(roll);
             self.angle_x = roll;
         } else {

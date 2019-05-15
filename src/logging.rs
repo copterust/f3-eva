@@ -1,20 +1,17 @@
 use ehal;
 use nb;
 
-use core::fmt;
 use crate::utils;
+use core::fmt;
 
-pub struct SerialLogger<Wr, Op>
-    where Wr: ehal::serial::Write<u8>,
-          Op: ehal::digital::OutputPin
-{
+pub struct SerialLogger<Wr, Op> {
     tx: Wr,
     beeper: Op,
 }
 
 impl<Wr, Op> SerialLogger<Wr, Op>
     where Wr: ehal::serial::Write<u8> + Sized,
-          Op: ehal::digital::OutputPin
+          Op: ehal::digital::v2::OutputPin
 {
     pub fn new(tx: Wr, beeper: Op) -> Self {
         Self { tx, beeper }
@@ -24,13 +21,13 @@ impl<Wr, Op> SerialLogger<Wr, Op>
         self.beeper.set_high();
         // XXX: use Delay and ms
         utils::tick_delay(32000);
-        self.beeper.set_low();
+        let _ = self.beeper.set_low();
     }
 }
 
 impl<Wr, Op> fmt::Write for SerialLogger<Wr, Op>
     where Wr: ehal::serial::Write<u8>,
-          Op: ehal::digital::OutputPin
+          Op: ehal::digital::v2::OutputPin
 {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         for c in s.chars() {
