@@ -2,6 +2,8 @@
 
 Drone firmware written in [rust](https://github.com/rust-lang/rust).
 
+(See [fcfs](https://github.com/copterust/fcfs-rtfm) as well).
+
 [![Build Status](https://travis-ci.org/copterust/f3-eva.svg?branch=master)](https://travis-ci.org/copterust/f3-eva)
 
 # Installation
