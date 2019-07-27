@@ -63,9 +63,7 @@ use_serial!(USART1, process_cmd);
 #[cfg(feature = "usart2")]
 use_serial!(USART2, process_cmd);
 
-type L = logging::SerialLogger<Tx<USART>,
-                               gpio::PC14<PullNone,
-                                          Output<PushPull, LowSpeed>>>;
+type L = logging::SerialLogger<Tx<USART>>;
 pub type Vector3 = nalgebra::Vector3<f32>;
 pub type Vector2 = nalgebra::Vector2<f32>;
 
@@ -138,8 +136,9 @@ fn main() -> ! {
     // // COBS frame
     // tx.write(0x00).unwrap();
 
-    let beeper = gpioc.pc14.output().pull_type(PullNone);
-    let mut l = logging::SerialLogger::new(tx, beeper);
+    let mut beeper = gpioc.pc15.output().push_pull().pull_type(PullNone);
+    let _ = beeper.set_high();
+    let mut l = logging::SerialLogger::new(tx);
     info!(l, "Logger ok\r\n");
     // XXX: split delay and pass to logger as well?
     let mut delay = Delay::new(core.SYST, clocks);
