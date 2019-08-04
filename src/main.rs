@@ -6,8 +6,7 @@
 #![feature(fn_traits, unboxed_closures)]
 #![allow(unused)]
 #![feature(const_fn)]
-#![feature(impl_trait_in_bindings)]
-#![feature(existential_type)]
+#![feature(type_alias_impl_trait)]
 
 // internal
 mod bootloader;

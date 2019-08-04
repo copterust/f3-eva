@@ -5,7 +5,7 @@ use cortex_m::peripheral::DWT;
 use hal::rcc::Clocks;
 use hal::time::*;
 
-pub existential type T: Chrono;
+pub type T = impl Chrono;
 
 pub fn stopwatch(dwt: DWT, dcb: DCB, clocks: Clocks) -> T {
     let m = MonoTimer::new(dwt, dcb, clocks);
