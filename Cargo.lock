@@ -178,7 +178,7 @@ dependencies = [
  "embedded-hal 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "libm 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "lsm303c 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mpu9250 0.12.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mpu9250 0.20.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "nalgebra 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "nb 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "shared-bus 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -214,14 +214,12 @@ dependencies = [
 
 [[package]]
 name = "mpu9250"
-version = "0.12.2"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bitflags 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cast 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "embedded-hal 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "generic-array 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "nalgebra 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -510,7 +508,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum libc 0.2.60 (registry+https://github.com/rust-lang/crates.io-index)" = "d44e80633f007889c7eff624b709ab43c92d708caad982295768a7b13ca3b5eb"
 "checksum libm 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "7fc7aa29613bd6a620df431842069224d8bc9011086b1db4c0e0cd47fa03ec9a"
 "checksum lsm303c 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "17477dcf4b1b3c177cb7a862f31d9ed7a4be190e7d83fab0c7752f84114d1ee3"
-"checksum mpu9250 0.12.2 (registry+https://github.com/rust-lang/crates.io-index)" = "be0161d3074c35f726d532853f5b143aa0bc1ab37d3cf3953c66fc333b140088"
+"checksum mpu9250 0.20.0 (registry+https://github.com/rust-lang/crates.io-index)" = "587f98014056933f4f2326b0eb90da3d788e61525f82330867b0f15a79d57f02"
 "checksum nalgebra 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8e12856109b5cb8e2934b5e45e4624839416e1c6c1f7d286711a7a66b79db29d"
 "checksum nb 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "b1411551beb3c11dedfb0a90a0fa256b47d28b9ec2cdff34c25a2fa59e45dbdc"
 "checksum num-complex 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "fcb0cf31fb3ff77e6d2a6ebd6800df7fdcd106f2ad89113c9130bcd07f93dffc"

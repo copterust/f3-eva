@@ -95,7 +95,7 @@ impl<DEV, E, T> AHRS<DEV, T>
                        -> Result<(dcmimu::EulerAngles, Vector3<f32>, f32), E>
         where W: core::fmt::Write
     {
-        let meas = self.mpu.all()?;
+        let meas = self.mpu.all::<Vector3<f32>>()?;
         let dt_s = self.timer_ms.split_time_s();
         let accel = meas.accel; //
                                 // - self.accel_biases;
