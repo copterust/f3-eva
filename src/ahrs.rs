@@ -34,6 +34,7 @@ pub struct AHRS<DEV, T> {
     angle_y: f32,
     kalman_x: kalman::AngularKalman,
     kalman_y: kalman::AngularKalman,
+    adj: [Adj; 3],
 }
 
 impl<DEV, E, T> AHRS<DEV, T>
@@ -76,6 +77,9 @@ impl<DEV, E, T> AHRS<DEV, T>
                                          k: [0.0, 0.0],
                                          y: 0.0,
                                          s: 0.0 };
+
+        let adj = [Adj { gain: 1.0026603, bias: -0.085096255 }, Adj { gain: 1.0023884, bias: -0.009737243 }, Adj { gain: 1.0091189, bias: -0.058230806 }];
+
         Ok(AHRS { mpu,
                   dcmimu,
                   // accel_biases,
@@ -83,7 +87,8 @@ impl<DEV, E, T> AHRS<DEV, T>
                   angle_x: 0.0,
                   angle_y: 0.0,
                   kalman_x: kx,
-                  kalman_y: ky })
+                  kalman_y: ky,
+                  adj })
     }
 
     pub fn setup_time(&mut self) {
@@ -97,8 +102,8 @@ impl<DEV, E, T> AHRS<DEV, T>
     {
         let meas = self.mpu.all::<Vector3<f32>>()?;
         let dt_s = self.timer_ms.split_time_s();
-        let accel = meas.accel; //
-                                // - self.accel_biases;
+
+        let accel = adjust_vector(&self.adj, meas.accel);
         let mut gyro = meas.gyro;
 
         // New filter
@@ -163,4 +168,24 @@ pub fn to_euler(q: &Quaternion<f32>) -> (f32, f32, f32) {
         yaw = atan2f(2. * (q.j * q.k + q.i * q.w), -sqx - sqy + sqz + sqw);
     }
     (roll, pitch, yaw)
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Adj {
+    pub gain: f32,
+    pub bias: f32,
+}
+
+impl Adj {
+    pub fn estimate(&self, v: f32) -> f32 {
+        (v - self.bias) / self.gain
+    }
+}
+
+fn adjust_vector(adj: &[Adj; 3], v: Vector3<f32>) -> Vector3<f32> {
+    Vector3::new(
+        adj[0].estimate(v.x),
+        adj[1].estimate(v.y),
+        adj[2].estimate(v.z),
+    )
 }
