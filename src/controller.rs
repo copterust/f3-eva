@@ -3,7 +3,7 @@
 use core::f32::consts::PI;
 use nalgebra::Matrix;
 use dcmimu::EulerAngles;
-use libm::F32Ext;
+use libm;
 use nalgebra::clamp;
 
 use crate::{Vector2, Vector3};
@@ -62,9 +62,10 @@ impl Controller {
         v_cmd += target_vertical_velocity;
         v_cmd = clamp(v_cmd, -self.MaxDescentRate, self.MaxAscentRate);
         let acc_cmd = feed_forward_acceleration
-                      + self.KpAltAcc * (v_cmd - vertical_velocity);
-        let thrust =
-            self.Mass * acc_cmd / (attitude.roll.cos() * attitude.pitch.cos());
+            + self.KpAltAcc * (v_cmd - vertical_velocity);
+        let arc = libm::cosf(attitude.roll);
+        let apc = libm::cosf(attitude.pitch);
+        let thrust = self.Mass * acc_cmd / (arc * apc);
         clamp(thrust, 0.0, self.MaxThrust)
     }
 

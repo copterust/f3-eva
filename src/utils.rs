@@ -25,7 +25,7 @@ impl WallClockDelay for Delay {
 
 // TODO: generify
 pub fn vec_to_tuple<T: nalgebra::base::Scalar>(inp: &Vector3<T>) -> (T, T, T) {
-    (inp.x, inp.y, inp.z)
+    (inp.x.clone(), inp.y.clone(), inp.z.clone())
 }
 
 pub fn parse<T, E>(bytes: &[u8]) -> Result<T, E>

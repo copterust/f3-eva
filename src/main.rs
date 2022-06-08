@@ -2,10 +2,8 @@
 #![no_std]
 #![no_main]
 #![feature(core_intrinsics)]
-#![feature(asm)]
 #![feature(fn_traits, unboxed_closures)]
 #![allow(unused)]
-#![feature(const_fn)]
 #![feature(type_alias_impl_trait)]
 
 // internal
@@ -54,7 +52,7 @@ use nb;
 // use bmp280::{self, BMP280};
 use mpu9250::{Mpu9250, MpuConfig};
 // use lsm303c::Lsm303c;
-use shared_bus::CortexMBusManager as SharedBus;
+use shared_bus::BusManagerSimple as SharedBus;
 use vl53l0x;
 
 #[cfg(feature = "usart1")]
@@ -186,7 +184,7 @@ fn main() -> ! {
     //                                 filter: bmp280::Filter::c16 });
     // info!(l, "bmp created\r\n");
     // // tof
-    let mut tof = vl53l0x::VL53L0x::new(bus.acquire()).expect("vl");
+    let mut tof = vl53l0x::VL53L0x::new(bus.acquire_i2c()).expect("vl");
     info!(l, "vl/tof ok\r\n");
     // tof.set_measurement_timing_budget(200000).expect("timbudg");
     // info!(l, "meas budget set; start cont \r\n");
@@ -250,9 +248,10 @@ fn main() -> ! {
     let l = unsafe { extract(&mut L) };
     info!(l, "init done\r\n");
     l.blink();
-    unsafe { cortex_m::interrupt::enable() };
-    let mut nvic = core.NVIC;
-    nvic.enable(serial_int);
+    unsafe {
+        cortex_m::interrupt::enable();
+        cortex_m::peripheral::NVIC::unmask(serial_int);
+    };
 
     // let original_pressure =
     //     get_mean_pressure_blocking(&mut bmp, &mut delay, 7, 150, 80000.0);
@@ -338,17 +337,17 @@ fn main() -> ! {
                 // let x_err = 0. - g.x;
                 // let z_err = 0. - g.z;
                 // body rate ctrl
-                let pk = pkoef();
+                let pk = pkoef(); // pk
                 let ik = ikoef();
                 let dk = dkoef();
                 // pitch-roll ctrl
                 let pitch_target_rad = pitch_target() * 3.141592 / 180.;
                 let pitch_err = pitch_target_rad - dcm.pitch;
-                let pitch_u = pitch_err * pitch_pkoef();
+                let pitch_u = pitch_err * pitch_pkoef(); // pipk
                 let yaw_err = 0. - dcm.yaw;
                 let yaw_u = yaw_err * yaw_pkoef();
                 let roll_err = 0. - dcm.roll;
-                let roll_u = roll_err * roll_pkoef();
+                let roll_u = roll_err * roll_pkoef(); // rpk
                 let x_err = roll_u - biased_gyro.x;
                 let y_err = pitch_u - biased_gyro.y;
                 let z_err = yaw_u - biased_gyro.z;
@@ -565,12 +564,12 @@ fn process_cmd() {
 }
 
 #[exception]
-fn HardFault(ef: &ExceptionFrame) -> ! {
+unsafe fn HardFault(ef: &ExceptionFrame) -> ! {
     panic!("HardFault at {:#?}", ef);
 }
 
 #[exception]
-fn DefaultHandler(irqn: i16) {
+unsafe fn DefaultHandler(irqn: i16) {
     panic!("Unhandled exception (IRQn = {})", irqn);
 }
 

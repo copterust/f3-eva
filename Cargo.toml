@@ -22,34 +22,34 @@ lto = true
 incremental = false # nalgebra
 
 [dependencies]
-nb = "0.1.1"
-cortex-m = {version = "0.6.0", features = ["inline-asm", "const-fn"]}
-mpu9250 = "0.20"
-asm-delay = "0.5.2"
+nb = "1.0.0"
+cortex-m = "0.7.5"
+mpu9250 = "0.24.0"
+asm-delay = "0.9.0"
 # mpu9250 = {path = "../mpu9250"}
-libm = "0.1.2"
-dcmimu = "0.2.1"
-cortex-m-rt = "0.6.8"
-lsm303c = "0.2"
-bmp280 = {version = "0.0.3", package="bmp280-ehal"}
-shared-bus = {version = "0.1.2", features = ["cortexm"]}
-vl53l0x = "0.2.0"
+libm = "0.2.2"
+dcmimu = "0.2.2"
+cortex-m-rt = "0.7.1"
+lsm303c = "0.2.0"
+bmp280 = { version = "0.0.5", package = "bmp280-ehal" }
+shared-bus = { version = "0.2.3", features = ["cortex-m"] }
+vl53l0x = "0.3.1"
 
 
 [dependencies.ehal]
 features = ["unproven"]
-version = "0.2.3"
+version = "0.2.7"
 package = "embedded-hal"
 
 [dependencies.hal]
-version = "0.20"
-# path = "../alt-stm32f30x-hal"
+version = "0.42.0"
 package = "alt-stm32f30x-hal"
 features = ["rt", "stm32f303"]
 
 [dependencies.nalgebra]
 default-features = false
-version = "0.18"
+features = ["libm", "libm-force"]
+version = "0.31.0"
 
 [features]
 usart1 = []
