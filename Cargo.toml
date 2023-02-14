@@ -29,7 +29,7 @@ asm-delay = "0.9.0"
 # mpu9250 = {path = "../mpu9250"}
 libm = "0.2.2"
 dcmimu = "0.2.2"
-cortex-m-rt = "0.7.1"
+cortex-m-rt = "0.7.3"
 lsm303c = "0.2.0"
 bmp280 = { version = "0.0.5", package = "bmp280-ehal" }
 shared-bus = { version = "0.2.3", features = ["cortex-m"] }
